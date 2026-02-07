@@ -279,7 +279,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
             ))}
             {[...padding, ...days].map((day, idx) => {
               const dateStr = day ? `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
-              const dayJobs = day ? jobs.filter(j => j.startDate === dateStr).filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.warrantyEndDate)) : [];
+              const dayJobs = day ? jobs
+                .filter(j => j.status === 'PENDING' || j.status === 'IN_PROGRESS') // Only show active/upcoming jobs on calendar
+                .filter(j => j.startDate === dateStr)
+                .filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.warrantyEndDate)) 
+                : [];
               return (
                 <div key={idx} className="bg-black min-h-[100px] p-2 relative group hover:bg-white/5 transition-colors">
                   {day && (
@@ -416,7 +420,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
 
       {isJobModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="bg-[#F2C200] p-6 text-black flex justify-between items-center">
               <h2 className="text-xl font-bold">{editingJobId ? 'Amend Service Job' : 'Create New Service Job'}</h2>
               <button onClick={() => setIsJobModalOpen(false)} className="text-black hover:opacity-70"><i className="fas fa-times text-xl"></i></button>

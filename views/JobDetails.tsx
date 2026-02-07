@@ -17,6 +17,9 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
   const [activeTab, setActiveTab] = useState<'DETAILS' | 'NOTES' | 'FILES' | 'PAYMENT'>('DETAILS');
   const [isEditing, setIsEditing] = useState(false);
   
+  // Edit form state
+  const [editForm, setEditForm] = useState<Partial<Job>>({});
+  
   // Note form state
   const [noteText, setNoteText] = useState('');
   const [noteImage, setNoteImage] = useState<string | null>(null);
@@ -27,7 +30,10 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
     const localJobs = JSON.parse(localStorage.getItem('bengal_jobs') || '[]');
     const source = localJobs.length > 0 ? localJobs : MOCK_JOBS;
     const found = source.find((j: Job) => j.id === id);
-    setJob(found);
+    if (found) {
+      setJob(found);
+      setEditForm(found);
+    }
   }, [id]);
 
   const saveJob = (updatedJob: Job) => {
@@ -43,6 +49,16 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
     }
     
     localStorage.setItem('bengal_jobs', JSON.stringify(newLocal));
+  };
+
+  const handleUpdateJobRecord = () => {
+    if (job && editForm.title) {
+      const updatedJob = { ...job, ...editForm } as Job;
+      saveJob(updatedJob);
+      setIsEditing(false);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    }
   };
 
   if (!job) return <div className="p-10 text-center text-white">Job not found.</div>;
@@ -84,7 +100,7 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
       {showSuccess && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-green-500 text-black px-6 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce z-[100]">
           <i className="fas fa-check-circle"></i>
-          <span className="text-sm font-bold uppercase tracking-tight">Report Logged Successfully!</span>
+          <span className="text-sm font-bold uppercase tracking-tight">Operation Successful!</span>
         </div>
       )}
 
@@ -330,6 +346,90 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
           )}
         </div>
       </div>
+
+      {/* Edit Job Modal */}
+      {isEditing && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-[#F2C200] p-6 text-black flex justify-between items-center">
+              <h2 className="text-xl font-bold">Manage Service Record</h2>
+              <button onClick={() => setIsEditing(false)} className="text-black hover:opacity-70">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            <div className="p-8 space-y-6 max-h-[80vh] overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Job Title</label>
+                  <input 
+                    type="text" 
+                    value={editForm.title || ''} 
+                    onChange={(e) => setEditForm({...editForm, title: e.target.value})} 
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none" 
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Description</label>
+                  <textarea 
+                    rows={3} 
+                    value={editForm.description || ''} 
+                    onChange={(e) => setEditForm({...editForm, description: e.target.value})} 
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl outline-none resize-none" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Fee (£)</label>
+                  <input 
+                    type="number" 
+                    value={editForm.amount || 0} 
+                    onChange={(e) => setEditForm({...editForm, amount: parseFloat(e.target.value)})} 
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Status</label>
+                  <select 
+                    value={editForm.status || 'PENDING'} 
+                    onChange={(e) => setEditForm({...editForm, status: e.target.value as JobStatus})} 
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl"
+                  >
+                    <option value="PENDING">Pending</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Start Date</label>
+                  <input 
+                    type="date" 
+                    value={editForm.startDate || ''} 
+                    onChange={(e) => setEditForm({...editForm, startDate: e.target.value})} 
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Warranty Expiry</label>
+                  <input 
+                    type="date" 
+                    value={editForm.warrantyEndDate || ''} 
+                    onChange={(e) => setEditForm({...editForm, warrantyEndDate: e.target.value})} 
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl" 
+                  />
+                </div>
+              </div>
+              <div className="pt-6 border-t border-[#333333]">
+                <button 
+                  onClick={handleUpdateJobRecord} 
+                  className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
+                >
+                  Update Service Record
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

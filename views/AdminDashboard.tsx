@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { MOCK_JOBS } from '../mockData';
 import { COLORS } from '../constants';
@@ -17,6 +17,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
   const [filter, setFilter] = useState<DashboardFilter>('ALL');
   const [viewMode, setViewMode] = useState<ViewMode>('LIST');
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Combobox state
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     const savedJobs = localStorage.getItem('bengal_jobs');
@@ -26,6 +31,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
       setJobs(MOCK_JOBS);
       localStorage.setItem('bengal_jobs', JSON.stringify(MOCK_JOBS));
     }
+  }, []);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
@@ -48,6 +64,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
   const [notesInput, setNotesInput] = useState('');
   const [warrantyEndDate, setWarrantyEndDate] = useState('');
 
+  // Helper to filter data by search query
+  const matchesSearch = (text?: string) => 
+    !searchQuery || (text || '').toLowerCase().includes(searchQuery.toLowerCase());
+
+  // Derived unique customers for the combobox
+  const uniqueCustomers = Array.from(
+    jobs.reduce((map, job) => {
+      if (job.customerId && !map.has(job.customerId)) {
+        map.set(job.customerId, job.customerName || 'No Name');
+      }
+      return map;
+    }, new Map<string, string>())
+  ).map(([id, name]) => ({ id, name }));
+
+  const filteredCustomers = uniqueCustomers.filter(c => 
+    c.id.toLowerCase().includes((jobForm.customerId || '').toLowerCase()) ||
+    c.name.toLowerCase().includes((jobForm.customerId || '').toLowerCase())
+  );
+
   const now = new Date();
   const ninetyDaysFromNow = new Date();
   ninetyDaysFromNow.setDate(now.getDate() + 90);
@@ -62,8 +97,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
 
   const filteredJobs = 
     ['QUOTES', 'QUOTES_PAID', 'WARRANTIES'].includes(filter) ? [] : 
-    filter === 'EXPIRING' ? expiringJobs :
-    filter === 'ALL' ? jobs : jobs.filter(j => j.status === filter);
+    filter === 'EXPIRING' ? expiringJobs.filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate)) :
+    filter === 'ALL' ? jobs.filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate)) : 
+    jobs.filter(j => j.status === filter).filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate));
 
   const updateStatus = (id: string, newStatus: JobStatus) => {
     const updated = jobs.map(j => j.id === id ? { ...j, status: newStatus } : j);
@@ -132,6 +168,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
     setIsJobModalOpen(false);
   };
 
+  const selectCustomerSuggestion = (c: { id: string, name: string }) => {
+    setJobForm({ ...jobForm, customerId: c.id, customerName: c.name });
+    setShowSuggestions(false);
+  };
+
   const getStatusStyles = (status: JobStatus) => {
     switch (status) {
       case 'PENDING': return 'bg-orange-900/30 text-orange-400 border-orange-800/50';
@@ -187,28 +228,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
         </button>
       </div>
 
-      <div className="flex overflow-x-auto space-x-2 pb-2 scrollbar-hide">
-        {[
-          { id: 'ALL', label: 'ALL' },
-          { id: 'PENDING', label: 'PENDING' },
-          { id: 'IN_PROGRESS', label: 'IN PROGRESS' },
-          { id: 'QUOTES', label: `Requested (${pendingQuotes.length})` },
-          { id: 'QUOTES_PAID', label: `Quotes Paid (${paidQuotes.length})` },
-          { id: 'WARRANTIES', label: 'Warranty Details' },
-          { id: 'EXPIRING', label: `Expiring Soon (${expiringJobs.length})` }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setFilter(tab.id as DashboardFilter)}
-            className={`px-6 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap border ${
-              filter === tab.id
-                ? `bg-[#F2C200] text-black border-[#F2C200] shadow-md`
-                : 'bg-black text-gray-500 border-[#333333] hover:border-[#F2C200]'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex flex-col md:flex-row md:items-center gap-4">
+        {/* Added pb-6 to add space between scrollbar and pills */}
+        <div className="flex overflow-x-auto space-x-2 pb-6 md:pb-0 scrollbar-hide flex-grow">
+          {[
+            { id: 'ALL', label: 'All' },
+            { id: 'PENDING', label: 'Pending' },
+            { id: 'IN_PROGRESS', label: 'In Progress' },
+            { id: 'QUOTES', label: `Requested (${pendingQuotes.length})` },
+            { id: 'QUOTES_PAID', label: `Quotes Paid (${paidQuotes.length})` },
+            { id: 'WARRANTIES', label: 'Warranty Details' },
+            { id: 'EXPIRING', label: `Expiring Soon (${expiringJobs.length})` }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setFilter(tab.id as DashboardFilter)}
+              className={`px-6 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap border ${
+                filter === tab.id
+                  ? `bg-[#F2C200] text-black border-[#F2C200] shadow-md`
+                  : 'bg-black text-gray-500 border-[#333333] hover:border-[#F2C200]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        
+        <div className="relative min-w-[240px]">
+          <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+          <input 
+            type="text" 
+            placeholder="Search records (ref, name, date)..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-[#111111] border border-[#333333] rounded-full text-sm text-white focus:outline-none focus:border-[#F2C200] transition-colors"
+          />
+        </div>
       </div>
 
       {viewMode === 'CALENDAR' ? (
@@ -224,7 +279,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
             ))}
             {[...padding, ...days].map((day, idx) => {
               const dateStr = day ? `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
-              const dayJobs = day ? jobs.filter(j => j.startDate === dateStr) : [];
+              const dayJobs = day ? jobs.filter(j => j.startDate === dateStr).filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.warrantyEndDate)) : [];
               return (
                 <div key={idx} className="bg-black min-h-[100px] p-2 relative group hover:bg-white/5 transition-colors">
                   {day && (
@@ -259,7 +314,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#333333]">
-                    {jobs.map((job) => (
+                    {jobs.filter(j => matchesSearch(j.customerName) || matchesSearch(j.title) || matchesSearch(j.warrantyEndDate)).map((job) => (
                       <tr key={job.id} className="hover:bg-white/5 transition-colors">
                         <td className="px-6 py-4 text-white font-bold">{job.customerName || 'No Name'}</td>
                         <td className="px-6 py-4 text-gray-300">{job.title}</td>
@@ -275,15 +330,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
             </div>
           ) : filter === 'QUOTES' || filter === 'QUOTES_PAID' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-left-4">
-              {(filter === 'QUOTES' ? pendingQuotes : paidQuotes).map(quote => (
-                <div key={quote.id} className="bg-[#111111] p-4 rounded-xl border border-[#333333] flex items-center space-x-4 cursor-pointer" onClick={() => setSelectedQuote(quote)}>
-                  <img src={quote.productImage} className="w-12 h-12 rounded object-contain bg-black p-1" />
-                  <div>
-                    <h3 className="text-sm font-bold text-white">{quote.productName}</h3>
-                    <p className="text-[10px] text-gray-500">{quote.customerName}</p>
+              {(filter === 'QUOTES' ? pendingQuotes : paidQuotes)
+                .filter(q => matchesSearch(q.productName) || matchesSearch(q.customerName) || matchesSearch(q.date))
+                .map(quote => (
+                  <div key={quote.id} className="bg-[#111111] p-4 rounded-xl border border-[#333333] flex items-center space-x-4 cursor-pointer" onClick={() => setSelectedQuote(quote)}>
+                    <img src={quote.productImage} className="w-12 h-12 rounded object-contain bg-black p-1" />
+                    <div>
+                      <h3 className="text-sm font-bold text-white">{quote.productName}</h3>
+                      <p className="text-[10px] text-gray-500">{quote.customerName} • {new Date(quote.date).toLocaleDateString()}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           ) : (
             <div className="bg-[#111111] rounded-2xl border border-[#333333] shadow-lg overflow-x-auto scrollbar-hide">
@@ -366,28 +423,68 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
             </div>
             <div className="p-8 space-y-6 max-h-[80vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+                
+                {/* Searchable Combobox for Account Code */}
+                <div className="relative md:order-2" ref={suggestionRef}>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Account Code (Auto-generated if empty)</label>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      value={jobForm.customerId} 
+                      onFocus={() => setShowSuggestions(true)}
+                      onChange={(e) => {
+                        setJobForm({...jobForm, customerId: e.target.value.toUpperCase()});
+                        setShowSuggestions(true);
+                      }} 
+                      placeholder="e.g. MICK01" 
+                      className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-black tracking-widest" 
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600">
+                      <i className={`fas ${showSuggestions ? 'fa-chevron-up' : 'fa-search'} text-xs`}></i>
+                    </div>
+                  </div>
+                  
+                  {showSuggestions && filteredCustomers.length > 0 && (
+                    <div className="absolute z-50 left-0 right-0 mt-2 bg-[#1A1A1A] border border-[#333333] rounded-xl shadow-2xl max-h-60 overflow-y-auto overflow-x-hidden scrollbar-hide animate-in fade-in zoom-in-95 duration-100">
+                      <div className="p-2 border-b border-[#333333]">
+                        <p className="text-[10px] font-black text-gray-500 uppercase px-2 py-1">Existing Customers</p>
+                      </div>
+                      {filteredCustomers.map(c => (
+                        <button 
+                          key={c.id}
+                          onClick={() => selectCustomerSuggestion(c)}
+                          className="w-full flex items-center justify-between p-4 hover:bg-[#F2C200] hover:text-black transition-colors text-left border-b border-white/5 last:border-0"
+                        >
+                          <div>
+                            <p className="font-black text-xs tracking-widest">{c.id}</p>
+                            <p className="text-[10px] opacity-70 font-bold">{c.name}</p>
+                          </div>
+                          <i className="fas fa-plus-circle text-xs opacity-40"></i>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-gray-500 mt-1">Select existing or type new. Groups history by code.</p>
+                </div>
+
+                <div className="md:order-1">
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Customer / Business Name</label>
                   <input type="text" value={jobForm.customerName} onChange={(e) => setJobForm({...jobForm, customerName: e.target.value})} placeholder="e.g. Mick's Café" className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none" />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Account Code (Auto-generated if empty)</label>
-                  <input type="text" value={jobForm.customerId} onChange={(e) => setJobForm({...jobForm, customerId: e.target.value})} placeholder="e.g. MICK01" className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none" />
-                  <p className="text-[10px] text-gray-500 mt-1">Use same code to group history for one customer.</p>
-                </div>
-                <div className="md:col-span-2">
+
+                <div className="md:col-span-2 md:order-3">
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Job Title</label>
                   <input type="text" value={jobForm.title} onChange={(e) => setJobForm({...jobForm, title: e.target.value})} className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none" />
                 </div>
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 md:order-4">
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Description</label>
                   <textarea rows={3} value={jobForm.description} onChange={(e) => setJobForm({...jobForm, description: e.target.value})} className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl outline-none resize-none" />
                 </div>
-                <div>
+                <div className="md:order-5">
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Fee (£)</label>
                   <input type="number" value={jobForm.amount} onChange={(e) => setJobForm({...jobForm, amount: parseFloat(e.target.value)})} className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl" />
                 </div>
-                <div>
+                <div className="md:order-6">
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Status</label>
                   <select value={jobForm.status} onChange={(e) => setJobForm({...jobForm, status: e.target.value as JobStatus})} className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl">
                     <option value="PENDING">Pending</option>
@@ -395,8 +492,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                     <option value="COMPLETED">Completed</option>
                   </select>
                 </div>
-                <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Start Date</label><input type="date" value={jobForm.startDate} onChange={(e) => setJobForm({...jobForm, startDate: e.target.value})} className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl" /></div>
-                <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Warranty Expiry</label><input type="date" value={jobForm.warrantyEndDate} onChange={(e) => setJobForm({...jobForm, warrantyEndDate: e.target.value})} className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl" /></div>
+                <div className="md:order-7"><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Start Date</label><input type="date" value={jobForm.startDate} onChange={(e) => setJobForm({...jobForm, startDate: e.target.value})} className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl" /></div>
+                <div className="md:order-8"><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Warranty Expiry</label><input type="date" value={jobForm.warrantyEndDate} onChange={(e) => setJobForm({...jobForm, warrantyEndDate: e.target.value})} className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl" /></div>
               </div>
               <div className="pt-6 border-t border-[#333333]">
                 <button onClick={handleSaveJob} className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A]">

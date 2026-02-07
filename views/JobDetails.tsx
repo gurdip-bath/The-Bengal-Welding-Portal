@@ -310,13 +310,15 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                   <p className="text-sm text-gray-400 font-bold">Total Contract Value: <span className="text-white">£{job.amount.toLocaleString()}</span></p>
                 </div>
                 {job.paymentStatus !== 'PAID' ? (
-                  <button 
-                    onClick={() => window.open('https://paypal.com', '_blank')} 
-                    className="bg-[#0070ba] text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center space-x-3 hover:brightness-110 shadow-xl shadow-[#0070ba33] transition-all active:scale-95"
-                  >
-                    <i className="fab fa-paypal text-xl"></i>
-                    <span>Settle via PayPal</span>
-                  </button>
+                  role !== 'ADMIN' && (
+                    <button 
+                      onClick={() => window.open('https://paypal.com', '_blank')} 
+                      className="bg-[#0070ba] text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center space-x-3 hover:brightness-110 shadow-xl shadow-[#0070ba33] transition-all active:scale-95"
+                    >
+                      <i className="fab fa-paypal text-xl"></i>
+                      <span>Settle via PayPal</span>
+                    </button>
+                  )
                 ) : (
                   <div className="flex items-center space-x-2 text-green-500 bg-green-500/10 px-6 py-3 rounded-full border border-green-500/20">
                     <i className="fas fa-circle-check"></i>

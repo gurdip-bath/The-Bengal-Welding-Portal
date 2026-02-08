@@ -14,6 +14,8 @@ export const MOCK_USER_CUSTOMER: User = {
   email: 'john@doe-eng.com',
   role: 'CUSTOMER',
   avatar: 'https://picsum.photos/seed/john/100',
+  phone: '07123 456 789',
+  address: '123 Engineering Lane, London, E1 1AA',
 };
 
 export const MOCK_USER_ADMIN: User = {
@@ -30,6 +32,10 @@ export const MOCK_JOBS: Job[] = [
     title: 'Commercial Kitchen Installation',
     description: 'Full installation of extraction system and stainless steel worktops.',
     customerId: 'u1',
+    customerName: 'John Doe Engineering',
+    customerEmail: 'john@doe-eng.com',
+    customerPhone: '07123 456 789',
+    customerAddress: '123 Engineering Lane, London, E1 1AA',
     status: 'IN_PROGRESS',
     startDate: '2024-01-15',
     warrantyEndDate: '2026-01-15',
@@ -41,6 +47,10 @@ export const MOCK_JOBS: Job[] = [
     title: 'Extraction Hood Maintenance',
     description: 'Biannual grease cleaning and filter replacement.',
     customerId: 'u1',
+    customerName: 'John Doe Engineering',
+    customerEmail: 'john@doe-eng.com',
+    customerPhone: '07123 456 789',
+    customerAddress: '123 Engineering Lane, London, E1 1AA',
     status: 'COMPLETED',
     startDate: '2024-05-10',
     warrantyEndDate: daysFromNow(45),
@@ -64,7 +74,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Bespoke stainless steel extraction canopy with baffle filters and integrated lighting.',
     price: 1200.00,
     category: 'Ventilation',
-    image: 'extraction-hood.jpg',
+    image: 'Extraction Hood.png',
   },
   {
     id: 'p3',
@@ -72,7 +82,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Professional deep cleaning for commercial extraction systems to ensure fire safety compliance.',
     price: 499.00,
     category: 'Services',
-    image: 'grease-cleaning-service-plan.jpg',
+    image: 'Grease Cleaning Service Plan.png',
   },
   {
     id: 'p4',
@@ -80,7 +90,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Stainless steel heated cupboard with sliding doors, perfect for plate warming and food holding.',
     price: 1450.00,
     category: 'Food Holding',
-    image: 'hot-cupboard.jpg',
+    image: 'Hot Cupboard.png',
   },
   {
     id: 'p5',
@@ -88,7 +98,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Single burner high-power stockpot stove designed for heavy industrial use.',
     price: 650.00,
     category: 'Cooking Equipment',
-    image: 'stockpot.jpg',
+    image: 'Stockpot.png',
   },
   {
     id: 'p6',
@@ -96,7 +106,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Custom prep table with integrated overhead gantry system and heating lamps.',
     price: 895.00,
     category: 'Food Prep',
-    image: 'table-and-gantry.jpg',
+    image: 'Table and Gantry.png',
   },
   {
     id: 'p7',
@@ -104,6 +114,6 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Shaan series professional Tandoori oven with high-grade insulation and precision heat control.',
     price: 1250.00,
     category: 'Cooking Equipment',
-    image: 'tandoori-oven.jpg',
+    image: 'Tandoori Oven.png',
   }
 ];

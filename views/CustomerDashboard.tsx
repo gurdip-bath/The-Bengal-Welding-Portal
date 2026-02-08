@@ -12,11 +12,15 @@ interface CustomerDashboardProps {
   onPayQuote?: (id: string) => void;
 }
 
-type TabType = 'ACTIVE' | 'HISTORY';
+type TabType = 'ACTIVE' | 'HISTORY' | 'PROFILE';
 
-const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user, quotes = [], onPayQuote }) => {
+const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser, quotes = [], onPayQuote }) => {
   const [activeTab, setActiveTab] = useState<TabType>('ACTIVE');
   const [allJobs, setAllJobs] = useState<Job[]>([]);
+  const [user, setUser] = useState<User>(initialUser);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState<Partial<User>>({});
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     const savedJobs = localStorage.getItem('bengal_jobs');
@@ -24,6 +28,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user, quotes = []
       setAllJobs(JSON.parse(savedJobs));
     } else {
       setAllJobs(MOCK_JOBS);
+    }
+    
+    // Check if user has updated profile in local storage
+    const savedUser = localStorage.getItem('bengal_user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
     }
   }, []);
 
@@ -68,18 +78,44 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user, quotes = []
     }
   };
 
+  const handleUpdateProfile = () => {
+    const updatedUser = { ...user, ...profileForm };
+    setUser(updatedUser);
+    localStorage.setItem('bengal_user', JSON.stringify(updatedUser));
+    setIsEditingProfile(false);
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 3000);
+  };
+
+  const openEditProfile = () => {
+    setProfileForm({
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '',
+      address: user.address || ''
+    });
+    setIsEditingProfile(true);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+      {showSuccess && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-green-500 text-black px-6 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce z-[100]">
+          <i className="fas fa-check-circle"></i>
+          <span className="text-sm font-bold uppercase tracking-tight">Profile Updated Successfully!</span>
+        </div>
+      )}
+
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#F2C200]">Welcome, {user.name}</h1>
           <p className="text-white opacity-80">Account ID: <span className="font-black tracking-tight">{user.id}</span> • Manage your service and maintenance.</p>
         </div>
         
-        <div className="flex bg-[#111111] border border-[#333333] p-1 rounded-xl w-fit">
+        <div className="flex bg-[#111111] border border-[#333333] p-1 rounded-xl w-fit overflow-x-auto scrollbar-hide">
           <button 
             onClick={() => setActiveTab('ACTIVE')}
-            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${
+            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
               activeTab === 'ACTIVE' 
                 ? 'bg-[#F2C200] text-black shadow-sm' 
                 : 'text-gray-500 hover:text-white'
@@ -89,7 +125,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user, quotes = []
           </button>
           <button 
             onClick={() => setActiveTab('HISTORY')}
-            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${
+            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
               activeTab === 'HISTORY' 
                 ? 'bg-[#F2C200] text-black shadow-sm' 
                 : 'text-gray-500 hover:text-white'
@@ -97,10 +133,20 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user, quotes = []
           >
             Order History
           </button>
+          <button 
+            onClick={() => setActiveTab('PROFILE')}
+            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
+              activeTab === 'PROFILE' 
+                ? 'bg-[#F2C200] text-black shadow-sm' 
+                : 'text-gray-500 hover:text-white'
+            }`}
+          >
+            <i className="fas fa-user-gear mr-2"></i>Profile
+          </button>
         </div>
       </header>
 
-      {activeTab === 'ACTIVE' ? (
+      {activeTab === 'ACTIVE' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-[#111111] p-5 rounded-xl border border-[#333333] shadow-sm">
@@ -218,7 +264,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user, quotes = []
             </div>
           </section>
         </>
-      ) : (
+      )}
+
+      {activeTab === 'HISTORY' && (
         <section className="animate-in slide-in-from-right-4">
           <div className="bg-[#111111] rounded-2xl border border-[#333333] shadow-lg overflow-hidden">
             <div className="overflow-x-auto">
@@ -266,6 +314,108 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user, quotes = []
             </div>
           </div>
         </section>
+      )}
+
+      {activeTab === 'PROFILE' && (
+        <section className="animate-in slide-in-from-bottom-4">
+          <div className="bg-[#111111] rounded-3xl border border-[#333333] overflow-hidden shadow-2xl">
+            <div className="p-8 border-b border-[#333333] flex justify-between items-center bg-black/40">
+              <div>
+                <h2 className="text-xl font-bold text-[#F2C200]">Account Details</h2>
+                <p className="text-gray-500 text-sm">Review and manage your contact information.</p>
+              </div>
+              {!isEditingProfile && (
+                <button 
+                  onClick={openEditProfile}
+                  className="bg-[#F2C200] text-black px-6 py-2 rounded-xl font-bold text-sm hover:brightness-110 transition-all"
+                >
+                  <i className="fas fa-pen-to-square mr-2"></i>Edit Profile
+                </button>
+              )}
+            </div>
+            
+            <div className="p-8 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Full Name / Business</label>
+                  <p className="text-lg font-bold text-white">{user.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Email Address</label>
+                  <p className="text-lg font-bold text-white">{user.email}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Phone</label>
+                  <p className="text-lg font-bold text-white">{user.phone || 'Not provided'}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Service Address</label>
+                  <p className="text-lg font-bold text-white leading-relaxed">{user.address || 'Not provided'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Edit Profile Modal */}
+      {isEditingProfile && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-[#F2C200] p-6 text-black flex justify-between items-center">
+              <h2 className="text-xl font-bold">Amend Contact Details</h2>
+              <button onClick={() => setIsEditingProfile(false)} className="text-black hover:opacity-70">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Business / Full Name</label>
+                <input 
+                  type="text" 
+                  value={profileForm.name || ''} 
+                  onChange={(e) => setProfileForm({...profileForm, name: e.target.value})} 
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Email Address</label>
+                <input 
+                  type="email" 
+                  value={profileForm.email || ''} 
+                  onChange={(e) => setProfileForm({...profileForm, email: e.target.value})} 
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Phone Number</label>
+                <input 
+                  type="tel" 
+                  value={profileForm.phone || ''} 
+                  onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})} 
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Service Address</label>
+                <textarea 
+                  rows={3} 
+                  value={profileForm.address || ''} 
+                  onChange={(e) => setProfileForm({...profileForm, address: e.target.value})} 
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none" 
+                />
+              </div>
+              <div className="pt-6 border-t border-[#333333]">
+                <button 
+                  onClick={handleUpdateProfile} 
+                  className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
+                >
+                  Save Account Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

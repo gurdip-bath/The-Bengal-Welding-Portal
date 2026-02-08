@@ -7,6 +7,8 @@ export interface User {
   email: string;
   role: UserRole;
   avatar?: string;
+  phone?: string;
+  address?: string;
 }
 
 export type JobStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
@@ -24,7 +26,10 @@ export interface Job {
   title: string;
   description: string;
   customerId: string;
-  customerName?: string; // New field for personalized links
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerAddress?: string;
   status: JobStatus;
   startDate: string;
   warrantyEndDate: string;

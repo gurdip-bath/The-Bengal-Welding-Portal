@@ -28,6 +28,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<CustomerProfile | null>(null);
   
+  // Customer Edit State
+  const [isEditCustomerModalOpen, setIsEditCustomerModalOpen] = useState(false);
+  const [customerEditForm, setCustomerEditForm] = useState<CustomerProfile | null>(null);
+
   // Combobox state
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionRef = useRef<HTMLDivElement>(null);
@@ -210,6 +214,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
       customerAddress: c.address
     });
     setShowSuggestions(false);
+  };
+
+  const handleOpenEditCustomer = () => {
+    if (selectedCustomerDetail) {
+      setCustomerEditForm({ ...selectedCustomerDetail });
+      setIsEditCustomerModalOpen(true);
+    }
+  };
+
+  const handleUpdateCustomer = () => {
+    if (!customerEditForm) return;
+
+    const updatedJobs = jobs.map(job => {
+      if (job.customerId === customerEditForm.id) {
+        return {
+          ...job,
+          customerName: customerEditForm.name,
+          customerEmail: customerEditForm.email,
+          customerPhone: customerEditForm.phone,
+          customerAddress: customerEditForm.address
+        };
+      }
+      return job;
+    });
+
+    setJobs(updatedJobs);
+    localStorage.setItem('bengal_jobs', JSON.stringify(updatedJobs));
+    setSelectedCustomerDetail(customerEditForm);
+    setIsEditCustomerModalOpen(false);
+    alert('Customer contact details updated across all service records.');
   };
 
   const getStatusStyles = (status: JobStatus) => {
@@ -511,9 +545,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                   <h2 className="text-xl font-bold text-white">{selectedCustomerDetail.name}</h2>
                   <p className="text-[10px] font-black text-[#F2C200] uppercase tracking-[0.2em]">{selectedCustomerDetail.id}</p>
                 </div>
-                <button onClick={() => setSelectedCustomerDetail(null)} className="w-10 h-10 rounded-full hover:bg-white/5 flex items-center justify-center text-gray-500 transition-colors">
-                  <i className="fas fa-times"></i>
-                </button>
+                <div className="flex items-center space-x-2">
+                   <button onClick={handleOpenEditCustomer} className="w-10 h-10 rounded-full hover:bg-[#F2C200] hover:text-black flex items-center justify-center text-gray-500 transition-all" title="Edit Customer Details">
+                      <i className="fas fa-pencil-alt"></i>
+                   </button>
+                   <button onClick={() => setSelectedCustomerDetail(null)} className="w-10 h-10 rounded-full hover:bg-white/5 flex items-center justify-center text-gray-500 transition-colors">
+                      <i className="fas fa-times"></i>
+                   </button>
+                </div>
              </header>
              
              <div className="flex-grow overflow-y-auto p-6 space-y-8 scrollbar-hide">
@@ -595,6 +634,69 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                   <span>View All Associated Jobs</span>
                 </button>
              </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Customer Modal */}
+      {isEditCustomerModalOpen && customerEditForm && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[600] flex items-center justify-center p-4">
+          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-[#F2C200] p-6 text-black flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold">Amend Customer Profile</h2>
+                <p className="text-[10px] font-black uppercase opacity-70 tracking-widest">ID: {customerEditForm.id}</p>
+              </div>
+              <button onClick={() => setIsEditCustomerModalOpen(false)} className="text-black hover:opacity-70">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Full Name / Business</label>
+                <input 
+                  type="text" 
+                  value={customerEditForm.name} 
+                  onChange={(e) => setCustomerEditForm({...customerEditForm, name: e.target.value})} 
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Email Address</label>
+                <input 
+                  type="email" 
+                  value={customerEditForm.email} 
+                  onChange={(e) => setCustomerEditForm({...customerEditForm, email: e.target.value})} 
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Contact Phone</label>
+                <input 
+                  type="tel" 
+                  value={customerEditForm.phone} 
+                  onChange={(e) => setCustomerEditForm({...customerEditForm, phone: e.target.value})} 
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Service Address</label>
+                <textarea 
+                  rows={3} 
+                  value={customerEditForm.address} 
+                  onChange={(e) => setCustomerEditForm({...customerEditForm, address: e.target.value})} 
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none font-medium text-sm leading-relaxed" 
+                />
+              </div>
+              <div className="pt-6 border-t border-[#333333]">
+                <button 
+                  onClick={handleUpdateCustomer} 
+                  className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
+                >
+                  Confirm Global Update
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

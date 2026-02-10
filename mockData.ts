@@ -66,7 +66,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Heavy duty commercial 6-burner range with high-output performance and stainless steel finish.',
     price: 1850.00,
     category: 'Cooking Equipment',
-    image: '/cooker.jpg',
+    image: 'cooker.png',
   },
   {
     id: 'p2',
@@ -74,7 +74,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Bespoke stainless steel extraction canopy with baffle filters and integrated lighting.',
     price: 1200.00,
     category: 'Ventilation',
-    image: 'Extraction Hood.png',
+    image: 'extraction-hood.png',
   },
   {
     id: 'p3',
@@ -82,7 +82,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Professional deep cleaning for commercial extraction systems to ensure fire safety compliance.',
     price: 499.00,
     category: 'Services',
-    image: 'Grease Cleaning Service Plan.png',
+    image: 'grease-cleaning-service-plan.png',
   },
   {
     id: 'p4',
@@ -90,7 +90,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Stainless steel heated cupboard with sliding doors, perfect for plate warming and food holding.',
     price: 1450.00,
     category: 'Food Holding',
-    image: 'Hot Cupboard.png',
+    image: 'hot-cupboard.png',
   },
   {
     id: 'p5',
@@ -98,7 +98,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Single burner high-power stockpot stove designed for heavy industrial use.',
     price: 650.00,
     category: 'Cooking Equipment',
-    image: 'Stockpot.png',
+    image: 'stockpot.png',
   },
   {
     id: 'p6',
@@ -106,7 +106,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Custom prep table with integrated overhead gantry system and heating lamps.',
     price: 895.00,
     category: 'Food Prep',
-    image: 'Table and Gantry.png',
+    image: 'table-and-gantry.png',
   },
   {
     id: 'p7',
@@ -114,6 +114,6 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Shaan series professional Tandoori oven with high-grade insulation and precision heat control.',
     price: 1250.00,
     category: 'Cooking Equipment',
-    image: 'Tandoori Oven.png',
+    image: 'tandoori-oven.png',
   }
 ];

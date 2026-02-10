@@ -77,6 +77,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
 
   const [priceInput, setPriceInput] = useState('');
   const [notesInput, setNotesInput] = useState('');
+  
+  // Warranty Date States
+  const [warrantyStartDate, setWarrantyStartDate] = useState('');
   const [warrantyEndDate, setWarrantyEndDate] = useState('');
 
   // Synchronize modal inputs when a quote is selected
@@ -262,6 +265,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
   const padding = Array.from({ length: firstDayOfMonth }, () => null);
 
+  // Deep link to warranty view from drawer
+  const viewInWarrantyList = (customerId: string) => {
+    setFilter('WARRANTIES');
+    setSearchQuery(customerId);
+    setSelectedCustomerDetail(null);
+  };
+
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 relative">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -294,9 +304,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
           <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-users-gear"></i></div>
           <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Directory</p><p className="text-xl font-black text-white">{uniqueCustomers.length}</p></div>
         </button>
-        <button onClick={() => setFilter('QUOTES')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'CUSTOMERS' ? 'border-[#F2C200] ring-2 ring-[#F2C200]/10' : 'border-[#333333]'}`}>
-          <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-users-gear"></i></div>
-          <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Pending Quotes</p><p className="text-xl font-black text-white">{uniqueCustomers.length}</p></div>
+        <button onClick={() => setFilter('QUOTES')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'QUOTES' ? 'border-[#F2C200] ring-2 ring-[#F2C200]/10' : 'border-[#333333]'}`}>
+          <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-file-invoice"></i></div>
+          <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Pending Quotes</p><p className="text-xl font-black text-white">{pendingQuotes.length}</p></div>
         </button>
       </div>
 
@@ -397,7 +407,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                         <td className="px-6 py-4 text-center font-bold text-[#F2C200]">{new Date(job.warrantyEndDate).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-right">
                           <button 
-                            onClick={() => { setEditingWarrantyJob(job); setWarrantyEndDate(job.warrantyEndDate); }} 
+                            onClick={() => { 
+                              setEditingWarrantyJob(job); 
+                              setWarrantyStartDate(job.startDate);
+                              setWarrantyEndDate(job.warrantyEndDate); 
+                            }} 
                             className="bg-[#F2C200] text-black px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
                           >
                             Adjust
@@ -555,6 +569,57 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
              </header>
              
              <div className="flex-grow overflow-y-auto p-6 space-y-8 scrollbar-hide">
+                {/* Active Warranties Section */}
+                <section className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active Warranties</h3>
+                    <button onClick={() => viewInWarrantyList(selectedCustomerDetail.id)} className="text-[9px] font-bold text-[#F2C200] uppercase hover:underline">View in List →</button>
+                  </div>
+                  <div className="space-y-3">
+                    {(() => {
+                      const customerWarranties = jobs.filter(j => j.customerId === selectedCustomerDetail.id && new Date(j.warrantyEndDate) > new Date());
+                      if (customerWarranties.length === 0) {
+                        return (
+                          <div className="bg-[#111111] p-4 rounded-xl border border-dashed border-[#333333] flex items-center space-x-3 text-gray-600">
+                            <i className="fas fa-shield-slash opacity-50"></i>
+                            <span className="text-xs font-bold italic">No active warranty contracts found.</span>
+                          </div>
+                        );
+                      }
+                      return customerWarranties.map(w => (
+                        <div key={w.id} className="bg-[#111111] p-4 rounded-xl border border-[#333333] hover:border-[#F2C200] transition-colors relative group">
+                          <div className="flex justify-between items-start mb-2">
+                             <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-[#F2C200] tracking-widest uppercase">Contract {w.id}</span>
+                                <h4 className="text-sm font-bold text-white">{w.title}</h4>
+                             </div>
+                             <span className="px-2 py-0.5 rounded-full bg-green-900/20 text-green-400 text-[8px] font-black uppercase border border-green-800/30">Active</span>
+                          </div>
+                          <div className="flex items-center justify-between mt-4">
+                             <div className="flex items-center space-x-2">
+                                <i className="fas fa-clock text-gray-600 text-[10px]"></i>
+                                <div className="flex flex-col">
+                                   <span className="text-[8px] text-gray-500 font-black uppercase">Term Duration</span>
+                                   <span className="text-[10px] text-gray-400 font-bold">{new Date(w.startDate).toLocaleDateString()} - {new Date(w.warrantyEndDate).toLocaleDateString()}</span>
+                                </div>
+                             </div>
+                             <button 
+                                onClick={() => { 
+                                  setEditingWarrantyJob(w); 
+                                  setWarrantyStartDate(w.startDate);
+                                  setWarrantyEndDate(w.warrantyEndDate); 
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-[#333333] text-white text-[9px] font-black uppercase hover:bg-[#F2C200] hover:text-black transition-all"
+                             >
+                               Adjust Term
+                             </button>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </section>
+
                 <section className="space-y-4">
                   <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Details</h3>
                   <div className="grid grid-cols-1 gap-4">
@@ -584,7 +649,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
 
                 <section className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active Contracts & History</h3>
+                    <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Service History</h3>
                     <span className="text-[10px] font-bold text-gray-600 uppercase">{jobs.filter(j => j.customerId === selectedCustomerDetail.id).length} records</span>
                   </div>
                   <div className="space-y-3">
@@ -821,26 +886,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
 
       {editingWarrantyJob && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95">
             <div className="bg-[#F2C200] p-6 text-black flex justify-between items-center">
-              <h2 className="text-xl font-bold">Adjust Warranty Dates</h2>
-              <button onClick={() => setEditingWarrantyJob(null)} className="text-black"><i className="fas fa-times"></i></button>
+              <div>
+                <h2 className="text-xl font-bold">Amend Warranty Term</h2>
+                <p className="text-[10px] font-black uppercase opacity-70 tracking-widest">{editingWarrantyJob.id}</p>
+              </div>
+              <button onClick={() => setEditingWarrantyJob(null)} className="text-black"><i className="fas fa-times text-xl"></i></button>
             </div>
             <div className="p-8 space-y-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Expiry Date</label>
-                <input type="date" value={warrantyEndDate} onChange={(e) => setWarrantyEndDate(e.target.value)} className="w-full px-4 py-3 bg-black border border-[#333333] rounded-xl text-white" />
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Warranty Start Date</label>
+                <input 
+                  type="date" 
+                  value={warrantyStartDate} 
+                  onChange={(e) => setWarrantyStartDate(e.target.value)} 
+                  className="w-full px-4 py-3 bg-black border border-[#333333] rounded-xl text-white font-bold outline-none focus:ring-1 focus:ring-[#F2C200]" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Warranty Expiry Date</label>
+                <input 
+                  type="date" 
+                  value={warrantyEndDate} 
+                  onChange={(e) => setWarrantyEndDate(e.target.value)} 
+                  className="w-full px-4 py-3 bg-black border border-[#333333] rounded-xl text-white font-bold outline-none focus:ring-1 focus:ring-[#F2C200]" 
+                />
+              </div>
+              <div className="bg-black/40 p-4 rounded-xl border border-[#333333]">
+                <p className="text-[10px] text-gray-500 font-bold uppercase mb-2">Contract Summary</p>
+                <p className="text-sm text-white font-bold">{editingWarrantyJob.title}</p>
+                <p className="text-xs text-gray-400 mt-1">Customer: {editingWarrantyJob.customerName}</p>
               </div>
               <button 
                 onClick={() => { 
-                  const updated = jobs.map(j => j.id === editingWarrantyJob.id ? { ...j, warrantyEndDate } : j);
+                  const updated = jobs.map(j => j.id === editingWarrantyJob.id ? { ...j, startDate: warrantyStartDate, warrantyEndDate } : j);
                   setJobs(updated);
                   localStorage.setItem('bengal_jobs', JSON.stringify(updated));
                   setEditingWarrantyJob(null); 
+                  alert('Warranty term updated successfully.');
                 }} 
                 className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:brightness-110 active:scale-95 transition-all"
               >
-                Save Changes
+                Update Warranty Contract
               </button>
             </div>
           </div>

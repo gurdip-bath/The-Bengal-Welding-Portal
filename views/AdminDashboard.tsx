@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { MOCK_JOBS } from '../mockData';
-import { COLORS } from '../constants';
 import { JobStatus, QuoteRequest, Job } from '../types';
 
 interface AdminDashboardProps {
@@ -295,9 +294,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
           <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-users-gear"></i></div>
           <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Directory</p><p className="text-xl font-black text-white">{uniqueCustomers.length}</p></div>
         </button>
-        <button onClick={() => setFilter('QUOTES')} className={`bg-[#111111] p-4 rounded-xl border border-[#333333] flex items-center space-x-4 text-left hover:border-[#F2C200] transition-colors ${filter === 'QUOTES' ? 'border-[#F2C200]' : ''}`}>
-          <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[#F2C200]"><i className="fas fa-file-invoice"></i></div>
-          <div><p className="text-[10px] font-bold text-gray-500 uppercase">Pending Quotes</p><p className="text-xl font-black text-white">{pendingQuotes.length}</p></div>
+        <button onClick={() => setFilter('QUOTES')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'CUSTOMERS' ? 'border-[#F2C200] ring-2 ring-[#F2C200]/10' : 'border-[#333333]'}`}>
+          <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-users-gear"></i></div>
+          <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Pending Quotes</p><p className="text-xl font-black text-white">{uniqueCustomers.length}</p></div>
         </button>
       </div>
 

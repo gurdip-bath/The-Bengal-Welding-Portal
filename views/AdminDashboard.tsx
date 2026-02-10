@@ -295,7 +295,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 lg:grid-cols-6 gap-4">
+        {/* Expiring Card - Placed First */}
+        <button onClick={() => setFilter('EXPIRING')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'EXPIRING' ? 'border-red-500 ring-2 ring-red-500/10' : 'border-red-900/40 hover:border-red-500'}`}>
+          <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 animate-pulse"><i className="fas fa-clock"></i></div>
+          <div><p className="text-[10px] font-black text-red-500 uppercase tracking-tighter">Expiring Soon</p><p className="text-xl font-black text-white">{expiringJobs.length}</p></div>
+        </button>
+
         <button onClick={() => setFilter('WARRANTIES')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'WARRANTIES' ? 'border-[#F2C200] ring-2 ring-[#F2C200]/10' : 'border-[#333333]'}`}>
           <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-shield-halved"></i></div>
           <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Warranties</p><p className="text-xl font-black text-white">{jobs.length}</p></div>
@@ -387,7 +393,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
         </div>
       ) : (
         <div className="space-y-6">
-          {filter === 'WARRANTIES' ? (
+          {filter === 'WARRANTIES' || filter === 'EXPIRING' ? (
             <div className="animate-in slide-in-from-left-4">
               <div className="bg-[#111111] rounded-2xl border border-[#333333] shadow-lg overflow-x-auto scrollbar-hide">
                 <table className="w-full text-left min-w-[800px]">
@@ -400,11 +406,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#333333]">
-                    {jobs.filter(j => matchesSearch(j.customerName) || matchesSearch(j.title) || matchesSearch(j.warrantyEndDate)).map((job) => (
+                    {filteredJobs.map((job) => (
                       <tr key={job.id} className="hover:bg-white/5 transition-colors">
                         <td className="px-6 py-4 text-white font-bold">{job.customerName || 'No Name'}</td>
                         <td className="px-6 py-4 text-gray-300">{job.title}</td>
-                        <td className="px-6 py-4 text-center font-bold text-[#F2C200]">{new Date(job.warrantyEndDate).toLocaleDateString()}</td>
+                        <td className={`px-6 py-4 text-center font-bold ${filter === 'EXPIRING' ? 'text-red-500' : 'text-[#F2C200]'}`}>
+                          {new Date(job.warrantyEndDate).toLocaleDateString()}
+                        </td>
                         <td className="px-6 py-4 text-right">
                           <button 
                             onClick={() => { 
@@ -412,13 +420,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                               setWarrantyStartDate(job.startDate);
                               setWarrantyEndDate(job.warrantyEndDate); 
                             }} 
-                            className="bg-[#F2C200] text-black px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
+                            className={`${filter === 'EXPIRING' ? 'bg-red-500' : 'bg-[#F2C200]'} text-black px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg hover:brightness-110 active:scale-95 transition-all`}
                           >
                             Adjust
                           </button>
                         </td>
                       </tr>
                     ))}
+                    {filteredJobs.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-bold uppercase tracking-widest text-xs italic">
+                          No {filter === 'EXPIRING' ? 'expiring' : ''} warranties found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

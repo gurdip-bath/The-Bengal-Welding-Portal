@@ -60,6 +60,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
   const [editingWarrantyJob, setEditingWarrantyJob] = useState<Job | null>(null);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
+  const [hasWarrantyToggle, setHasWarrantyToggle] = useState(false);
   const [jobForm, setJobForm] = useState<Partial<Job>>({
     title: '', 
     description: '', 
@@ -123,6 +124,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
   const ninetyDaysFromNow = new Date();
   ninetyDaysFromNow.setDate(now.getDate() + 90);
 
+  const activeWarranties = jobs.filter(job => new Date(job.warrantyEndDate) > now);
+
   const expiringJobs = jobs.filter(job => {
     const expiryDate = new Date(job.warrantyEndDate);
     return expiryDate > now && expiryDate <= ninetyDaysFromNow;
@@ -132,7 +135,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
   const paidQuotes = quotes.filter(q => q.status === 'PAID');
 
   const filteredJobs = 
-    ['QUOTES', 'QUOTES_PAID', 'WARRANTIES', 'CUSTOMERS'].includes(filter) ? [] : 
+    ['QUOTES', 'QUOTES_PAID', 'CUSTOMERS'].includes(filter) ? [] : 
+    filter === 'WARRANTIES' ? activeWarranties.filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate)) :
     filter === 'EXPIRING' ? expiringJobs.filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate)) :
     filter === 'ALL' ? jobs.filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate)) : 
     jobs.filter(j => j.status === filter).filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate));
@@ -152,6 +156,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
 
   const openAddJobModal = () => {
     setEditingJobId(null);
+    setHasWarrantyToggle(false);
     setJobForm({
       title: '', 
       description: '', 
@@ -171,6 +176,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
 
   const openEditJobModal = (job: Job) => {
     setEditingJobId(job.id);
+    const hasActiveWarranty = new Date(job.warrantyEndDate) > new Date();
+    setHasWarrantyToggle(hasActiveWarranty);
     setJobForm({ ...job });
     setIsJobModalOpen(true);
   };
@@ -189,12 +196,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
     
     const finalCustomerId = jobForm.customerId || `CUST-${Math.floor(Math.random() * 9000) + 1000}`;
     
+    // If warranty is not toggled, set warrantyEndDate to a past date or current startDate
+    // to ensure it doesn't count as an active warranty in dashboard counters.
+    const finalWarrantyEndDate = hasWarrantyToggle 
+      ? jobForm.warrantyEndDate 
+      : jobForm.startDate;
+
     let updatedJobs;
     if (editingJobId) {
-      updatedJobs = jobs.map(j => j.id === editingJobId ? { ...j, ...jobForm, customerId: finalCustomerId } as Job : j);
+      updatedJobs = jobs.map(j => j.id === editingJobId ? { ...j, ...jobForm, warrantyEndDate: finalWarrantyEndDate, customerId: finalCustomerId } as Job : j);
     } else {
       const newJob: Job = { 
         ...jobForm, 
+        warrantyEndDate: finalWarrantyEndDate,
         id: `J-${Math.floor(Math.random() * 10000)}`,
         customerId: finalCustomerId 
       } as Job;
@@ -296,15 +310,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-5 lg:grid-cols-6 gap-4">
-        {/* Expiring Card - Placed First */}
-        <button onClick={() => setFilter('EXPIRING')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'EXPIRING' ? 'border-red-500 ring-2 ring-red-500/10' : 'border-red-900/40 hover:border-red-500'}`}>
-          <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 animate-pulse"><i className="fas fa-clock"></i></div>
-          <div><p className="text-[10px] font-black text-red-500 uppercase tracking-tighter">Expiring Soon</p><p className="text-xl font-black text-white">{expiringJobs.length}</p></div>
-        </button>
+        {/* Expiring Card - Conditionally Rendered */}
+        {expiringJobs.length > 0 && (
+          <button onClick={() => setFilter('EXPIRING')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'EXPIRING' ? 'border-red-500 ring-2 ring-red-500/10' : 'border-red-900/40 hover:border-red-500'}`}>
+            <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 animate-pulse"><i className="fas fa-clock"></i></div>
+            <div><p className="text-[10px] font-black text-red-500 uppercase tracking-tighter">Expiring Soon</p><p className="text-xl font-black text-white">{expiringJobs.length}</p></div>
+          </button>
+        )}
 
         <button onClick={() => setFilter('WARRANTIES')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'WARRANTIES' ? 'border-[#F2C200] ring-2 ring-[#F2C200]/10' : 'border-[#333333]'}`}>
           <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-shield-halved"></i></div>
-          <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Warranties</p><p className="text-xl font-black text-white">{jobs.length}</p></div>
+          <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Active Warranties</p><p className="text-xl font-black text-white">{activeWarranties.length}</p></div>
         </button>
         <button onClick={() => setFilter('CUSTOMERS')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'CUSTOMERS' ? 'border-[#F2C200] ring-2 ring-[#F2C200]/10' : 'border-[#333333]'}`}>
           <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-users-gear"></i></div>
@@ -720,7 +736,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
       {/* Edit Customer Modal */}
       {isEditCustomerModalOpen && customerEditForm && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[600] flex items-center justify-center p-4">
-          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="bg-[#F2C200] p-6 text-black flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold">Amend Customer Profile</h2>
@@ -787,7 +803,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
               <h2 className="text-xl font-bold">{editingJobId ? 'Amend Service Job' : 'Create New Service Job'}</h2>
               <button onClick={() => setIsJobModalOpen(false)} className="text-black hover:opacity-70"><i className="fas fa-times text-xl"></i></button>
             </div>
-            <div className="p-8 space-y-6 max-h-[85vh] overflow-y-auto">
+            <div className="p-8 space-y-6 max-h-[85vh] overflow-y-auto scrollbar-hide">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 <div className="relative md:col-span-1" ref={suggestionRef}>
@@ -858,6 +874,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                     <option value="CANCELLED">Cancelled</option>
                   </select>
                 </div>
+
+                {/* Warranty Toggle & Fields */}
+                <div className="md:col-span-2 p-4 bg-black rounded-2xl border border-[#333333] space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-white">Customer has a warranty?</p>
+                      <p className="text-[10px] text-gray-500 uppercase font-black">Enabling this adds the record to active warranties</p>
+                    </div>
+                    <button 
+                      onClick={() => setHasWarrantyToggle(!hasWarrantyToggle)}
+                      className={`w-12 h-6 rounded-full transition-colors relative ${hasWarrantyToggle ? 'bg-[#F2C200]' : 'bg-[#333333]'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-black transition-all ${hasWarrantyToggle ? 'left-7' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  
+                  {hasWarrantyToggle && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2">
+                      <div>
+                        <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">Warranty Start Date</label>
+                        <input 
+                          type="date" 
+                          value={jobForm.startDate} 
+                          onChange={(e) => setJobForm({...jobForm, startDate: e.target.value})} 
+                          className="w-full p-3 bg-[#111111] border border-[#333333] text-white rounded-xl text-xs font-bold" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">Warranty Expiry Date</label>
+                        <input 
+                          type="date" 
+                          value={jobForm.warrantyEndDate} 
+                          onChange={(e) => setJobForm({...jobForm, warrantyEndDate: e.target.value})} 
+                          className="w-full p-3 bg-[#111111] border border-[#333333] text-white rounded-xl text-xs font-bold" 
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </div>
               <div className="pt-6 border-t border-[#333333]">
                 <button onClick={handleSaveJob} className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A]">

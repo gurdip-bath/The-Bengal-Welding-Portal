@@ -121,7 +121,7 @@ const App: React.FC = () => {
                       : <CustomerDashboard user={user} quotes={quotes} onPayQuote={handleCustomerPayQuote} />
                   } 
                 />
-                <Route path="/products" element={<ProductsCatalog onRequestQuote={handleRequestQuote} />} />
+                <Route path="/products" element={<ProductsCatalog onRequestQuote={handleRequestQuote} user={user} />} />
                 <Route path="/jobs/:id" element={<JobDetails role={user.role} />} />
                 <Route path="*" element={<Navigate to="/dashboard" />} />
               </>

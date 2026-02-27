@@ -1,16 +1,32 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { MOCK_PRODUCTS } from '../mockData';
 import { Product } from '../types';
-import { COLORS } from '../constants';
+import { User } from '../types';
+import { createDirectDebitCheckoutSession } from '../lib/api';
 
 interface ProductsCatalogProps {
   onRequestQuote: (product: Product, notes?: string, image?: string) => void;
+  user?: User | null;
 }
 
-const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => {
+const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote, user }) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [subscribing, setSubscribing] = useState(false);
+  const [subError, setSubError] = useState<string | null>(null);
   const [activeSpecialQuoteProduct, setActiveSpecialQuoteProduct] = useState<Product | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('subscribed') === 'success') {
+      setToastMessage('Direct Debit subscription set up! You will receive confirmation shortly.');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 5000);
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
   
   // Special quote state
   const [specialNotes, setSpecialNotes] = useState('');
@@ -27,6 +43,7 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => 
       setActiveSpecialQuoteProduct(product);
     } else {
       onRequestQuote(product);
+      setToastMessage('Request sent! Confirmation email coming soon.');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     }
@@ -46,13 +63,25 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => 
 
   const submitSpecialQuote = () => {
     if (activeSpecialQuoteProduct) {
-      // For simplicity, we store the media URL in the same applianceImage field
       onRequestQuote(activeSpecialQuoteProduct, specialNotes, specialMedia?.url);
       setActiveSpecialQuoteProduct(null);
       setSpecialNotes('');
       setSpecialMedia(null);
+      setToastMessage('Request sent! Confirmation email coming soon.');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
+    }
+  };
+
+  const handleDirectDebitSubscribe = async () => {
+    setSubscribing(true);
+    setSubError(null);
+    try {
+      const url = await createDirectDebitCheckoutSession(user?.email);
+      window.location.href = url;
+    } catch (err) {
+      setSubError(err instanceof Error ? err.message : 'Failed to start checkout');
+      setSubscribing(false);
     }
   };
 
@@ -98,16 +127,30 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => 
               <h3 className="font-bold text-lg text-white mb-1">{product.name}</h3>
               <p className="text-sm text-gray-400 mb-4 line-clamp-2">{product.description}</p>
               
-              <div className="flex items-center justify-between mt-auto pt-4 border-t border-[#333333]">
-                <span className="text-xl font-bold text-[#F2C200]">
-                  {product.category === 'Services' ? 'From ' : ''}£{product.price.toLocaleString()}
-                </span>
-                <button 
-                  onClick={() => handleQuoteRequest(product)}
-                  className="bg-[#F2C200] text-black px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all"
-                >
-                  Request Quote
-                </button>
+              <div className="flex flex-col gap-2 mt-auto pt-4 border-t border-[#333333]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xl font-bold text-[#F2C200]">
+                    {product.category === 'Services' ? 'From ' : ''}£{product.price.toLocaleString()}
+                    {product.name === 'Grease Cleaning Service Plan' && <span className="text-sm font-normal text-gray-400">/mo</span>}
+                  </span>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleQuoteRequest(product)}
+                      className="bg-[#F2C200] text-black px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all"
+                    >
+                      Request Quote
+                    </button>
+                    {product.name === 'Grease Cleaning Service Plan' && (
+                      <button 
+                        onClick={handleDirectDebitSubscribe}
+                        disabled={subscribing}
+                        className="bg-[#635BFF] text-white px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all disabled:opacity-60"
+                      >
+                        {subscribing ? 'Loading…' : 'Subscribe'}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -189,12 +232,24 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => 
                 </div>
               </div>
 
-              <button 
-                onClick={submitSpecialQuote}
-                className="w-full bg-[#F2C200] text-black py-4 rounded-xl font-bold shadow-lg shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
-              >
-                Submit Quote Request
-              </button>
+              <div className="space-y-3">
+                <button 
+                  onClick={handleDirectDebitSubscribe}
+                  disabled={subscribing}
+                  className="w-full bg-[#635BFF] text-white py-4 rounded-xl font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <i className="fas fa-university"></i>
+                  {subscribing ? 'Redirecting…' : 'Subscribe with Monthly Direct Debit — £499/mo'}
+                </button>
+                {subError && <p className="text-sm text-red-400 text-center">{subError}</p>}
+                <p className="text-xs text-gray-500 text-center">or</p>
+                <button 
+                  onClick={submitSpecialQuote}
+                  className="w-full bg-[#F2C200] text-black py-4 rounded-xl font-bold shadow-lg shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
+                >
+                  Submit Quote Request
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -204,7 +259,7 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => 
       {showToast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#F2C200] text-black px-6 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce z-[120]">
           <i className="fas fa-check-circle text-black"></i>
-          <span className="text-sm font-bold uppercase tracking-tight">Request sent! Confirmation email coming soon.</span>
+          <span className="text-sm font-bold uppercase tracking-tight">{toastMessage}</span>
         </div>
       )}
 

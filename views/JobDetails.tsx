@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { MOCK_JOBS } from '../mockData';
 import { UserRole, FileMeta, JobStatus, Job, JobNote } from '../types';
+import { getSiteName, getJobIdentifierAndService } from '../utils/jobIdentity';
 import WarrantyCard from '../components/WarrantyCard';
 import { COLORS } from '../constants';
 
@@ -23,13 +24,35 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
   // Note form state
   const [noteText, setNoteText] = useState('');
   const [noteImage, setNoteImage] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const localJobs = JSON.parse(localStorage.getItem('bengal_jobs') || '[]');
     const source = localJobs.length > 0 ? localJobs : MOCK_JOBS;
-    const found = source.find((j: Job) => j.id === id);
+    let found = source.find((j: Job) => j.id === id);
+    if (!found && id) {
+      // Fallback: load job from survey (keeps job visible until survey is completed)
+      const surveys = JSON.parse(localStorage.getItem('bengal_surveys') || '[]');
+      const survey = surveys.find((s: { jobId: string }) => s.jobId === id);
+      if (survey) {
+        found = {
+          id: survey.jobId,
+          title: survey.jobTitle || 'TR19 Grease Survey',
+          description: survey.notes || 'Survey in progress',
+          customerId: survey.customerName || survey.jobId,
+          customerName: survey.customerName,
+          customerAddress: survey.customerAddress,
+          customerPostcode: survey.postcode,
+          status: 'IN_PROGRESS' as const,
+          startDate: new Date().toISOString().split('T')[0],
+          warrantyEndDate: new Date().toISOString().split('T')[0],
+          paymentStatus: 'UNPAID' as const,
+          amount: 0,
+        } as Job;
+      }
+    }
     if (found) {
       setJob(found);
       setEditForm(found);
@@ -138,8 +161,8 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
               <i className="fas fa-screwdriver-wrench text-xl"></i>
             </div>
             <div>
-              <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">{job.title}</h1>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-[0.2em]">Service Reference: {job.id}</p>
+              <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">{getSiteName(job)}</h1>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-[0.2em]">{getJobIdentifierAndService(job)}</p>
             </div>
           </div>
           <div className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest border shadow-inner ${
@@ -179,6 +202,14 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                     <i className="fas fa-calendar-check text-[#F2C200]"></i>
                     <p className="text-xl font-bold text-white">{new Date(job.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   </div>
+                  {(job.startTime || job.duration || job.jobType || job.leadOperative) && (
+                    <div className="mt-4 pt-4 border-t border-[#333333] space-y-2 text-sm">
+                      {job.startTime && <p><span className="text-gray-500">Start:</span> <span className="text-white font-bold">{job.startTime}</span></p>}
+                      {job.duration && <p><span className="text-gray-500">Duration:</span> <span className="text-white font-bold">{job.duration} hour{job.duration !== 1 ? 's' : ''}</span></p>}
+                      {job.jobType && <p><span className="text-gray-500">Job Type:</span> <span className="text-white font-bold">{job.jobType}</span></p>}
+                      {job.leadOperative && <p><span className="text-gray-500">Lead Operative:</span> <span className="text-white font-bold">{job.leadOperative}</span></p>}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -271,10 +302,10 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                     {note.images?.length && (
                       <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
                         {note.images.map((img, i) => (
-                          <div 
-                            key={i} 
-                            className="relative aspect-square rounded-xl overflow-hidden border border-[#333333] group/img cursor-pointer"
-                            onClick={() => window.open(img, '_blank')}
+                          <div
+                            key={i}
+                            className="relative aspect-square rounded-xl overflow-hidden border border-[#333333] group/img cursor-pointer hover:border-[#F2C200] transition-colors"
+                            onClick={() => setPhotoPreview(img)}
                           >
                             <img src={img} alt="Evidence" className="w-full h-full object-cover group-hover/img:scale-110 transition-transform duration-500" />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
@@ -428,6 +459,16 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Photo enlarge modal */}
+      {photoPreview && (
+        <div
+          className="fixed inset-0 bg-black/90 z-[300] flex items-center justify-center p-4"
+          onClick={() => setPhotoPreview(null)}
+        >
+          <img src={photoPreview} alt="Enlarged" className="max-w-full max-h-full object-contain" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>

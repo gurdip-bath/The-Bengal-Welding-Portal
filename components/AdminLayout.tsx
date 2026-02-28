@@ -11,8 +11,10 @@ interface AdminLayoutProps {
 
 const SIDEBAR_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'fa-gauge-high' },
+  { path: '/dashboard/jobs', label: 'Jobs', icon: 'fa-briefcase' },
   { path: '/dashboard/sites', label: 'Sites', icon: 'fa-building' },
   { path: '/dashboard/certificates', label: 'Certificates', icon: 'fa-certificate' },
+  { path: '/dashboard/report-log', label: 'Report Log', icon: 'fa-list' },
   { path: '/dashboard/surveys', label: 'Surveys', icon: 'fa-clipboard-list' },
   { path: '/dashboard/quotes', label: 'Quotes', icon: 'fa-file-invoice-dollar' },
   { path: '/dashboard/employees', label: 'Employees', icon: 'fa-user-shield' },

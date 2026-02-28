@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { useAdmin } from '../contexts/AdminContext';
 import { Job } from '../types';
+import { getSiteName, getJobIdentifierAndService, getSiteAddress } from '../utils/jobIdentity';
 
 const FREQUENCY_OPTIONS = [
   'Every 3 months',
@@ -74,7 +74,12 @@ const AdminSites: React.FC = () => {
         matchesSearch(j.customerPostcode) ||
         matchesSearch(j.customerEmail) ||
         matchesSearch(j.contactName) ||
-        matchesSearch(j.warrantyEndDate)
+        matchesSearch(j.warrantyEndDate) ||
+        matchesSearch(j.id) ||
+        matchesSearch(j.title) ||
+        matchesSearch(j.jobType) ||
+        matchesSearch(j.description) ||
+        matchesSearch((j as Job & { certificateNumber?: string }).certificateNumber)
     )
     .sort((a, b) => new Date(a.warrantyEndDate).getTime() - new Date(b.warrantyEndDate).getTime());
 
@@ -191,7 +196,7 @@ const AdminSites: React.FC = () => {
             <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
             <input
               type="text"
-              placeholder="Search sites..."
+              placeholder="Search by site, contact, job ref, certificate #..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-[#111111] border border-[#333333] rounded-full text-sm text-white focus:outline-none focus:border-[#F2C200]"
@@ -251,14 +256,14 @@ const AdminSites: React.FC = () => {
           <tbody className="divide-y divide-[#333333]">
             {filteredSites.map((job) => {
               const certStatus = getCertificateStatus(job);
-              const siteAddress = [job.customerAddress, job.customerPostcode].filter(Boolean).join(', ') || job.customerPostcode || '-';
               const contactName = job.contactName || job.customerName || '—';
               return (
                 <tr key={job.id} className="hover:bg-white/5">
                   <td className="px-6 py-4">
                     <div>
-                      <p className="font-bold text-white">{job.customerName || 'No Name'}</p>
-                      <p className="text-[10px] text-gray-500">{siteAddress}</p>
+                      <p className="font-bold text-white">{getSiteName(job)}</p>
+                      <p className="text-xs text-gray-500">{getJobIdentifierAndService(job)}</p>
+                      <p className="text-[10px] text-gray-600 mt-0.5">{getSiteAddress(job)}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4">

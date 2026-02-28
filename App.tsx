@@ -7,9 +7,13 @@ import Navbar from './components/Navbar';
 import CustomerDashboard from './views/CustomerDashboard';
 import AdminWrapper from './views/AdminWrapper';
 import AdminDashboardHome from './views/AdminDashboardHome';
+import AdminJobs from './views/AdminJobs';
 import AdminSites from './views/AdminSites';
 import AdminCertificates from './views/AdminCertificates';
 import AdminSurveys from './views/AdminSurveys';
+import AdminSurveyForm from './views/AdminSurveyForm';
+import AdminTR19ReportForm from './views/TR19ReportForm';
+import AdminReportLog from './views/AdminReportLog';
 import AdminQuotes from './views/AdminQuotes';
 import AdminEmployees from './views/AdminEmployees';
 import ProductsCatalog from './views/ProductsCatalog';
@@ -121,9 +125,13 @@ const App: React.FC = () => {
                 {user.role === 'ADMIN' ? (
                   <Route path="/dashboard" element={<AdminWrapper user={user} quotes={quotes} onUpdateQuote={handleAdminUpdateQuote} onLogout={handleLogout} />}>
                     <Route index element={<AdminDashboardHome />} />
+                    <Route path="jobs" element={<AdminJobs />} />
                     <Route path="sites" element={<AdminSites />} />
                     <Route path="certificates" element={<AdminCertificates />} />
                     <Route path="surveys" element={<AdminSurveys />} />
+                    <Route path="surveys/start/:jobId" element={<AdminSurveyForm />} />
+                    <Route path="jobs/:jobId/tr19-report" element={<AdminTR19ReportForm />} />
+                    <Route path="report-log" element={<AdminReportLog />} />
                     <Route path="quotes" element={<AdminQuotes />} />
                     <Route path="employees" element={<AdminEmployees />} />
                   </Route>

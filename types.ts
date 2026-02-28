@@ -44,6 +44,10 @@ export interface Job {
   greaseRating?: string;
   ductLength?: string;
   tr19Compliant?: boolean;
+  startTime?: string;
+  duration?: number;
+  jobType?: string;
+  leadOperative?: string;
 }
 
 export interface QuoteRequest {

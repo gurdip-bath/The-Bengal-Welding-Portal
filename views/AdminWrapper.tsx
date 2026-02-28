@@ -67,22 +67,32 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
   const [viewMode, setViewMode] = useState<'LIST' | 'CALENDAR'>('LIST');
 
   useEffect(() => {
+    const REMOVED_JOB_IDS = ['r1', 'r2']; // Nandos Liverpool, The Crown Hotel
+    const withoutRemoved = (arr: Job[]) => arr.filter((j) => !REMOVED_JOB_IDS.includes(j.id));
+
     if (CLEAR_JOBS_FOR_RENEWAL_TEST) {
       localStorage.setItem('bengal_jobs', '[]');
       setJobs([]);
       return;
     }
-    if (SEED_RENEWAL_MOCK_DATA) {
-      localStorage.setItem('bengal_jobs', JSON.stringify(MOCK_JOBS));
-      setJobs(MOCK_JOBS);
+    const savedJobs = localStorage.getItem('bengal_jobs');
+    const raw = savedJobs ? JSON.parse(savedJobs) : [];
+    const filtered = withoutRemoved(raw);
+    if (SEED_RENEWAL_MOCK_DATA && filtered.length === 0) {
+      const seed = withoutRemoved(MOCK_JOBS);
+      localStorage.setItem('bengal_jobs', JSON.stringify(seed));
+      setJobs(seed);
       return;
     }
-    const savedJobs = localStorage.getItem('bengal_jobs');
-    if (savedJobs) {
-      setJobs(JSON.parse(savedJobs));
+    if (savedJobs && filtered.length > 0) {
+      setJobs(filtered);
+      if (filtered.length !== raw.length) {
+        localStorage.setItem('bengal_jobs', JSON.stringify(filtered));
+      }
     } else {
-      setJobs(MOCK_JOBS);
-      localStorage.setItem('bengal_jobs', JSON.stringify(MOCK_JOBS));
+      const seed = withoutRemoved(MOCK_JOBS);
+      setJobs(seed);
+      localStorage.setItem('bengal_jobs', JSON.stringify(seed));
     }
   }, []);
 
@@ -724,10 +734,12 @@ function JobModal({
                 type="date"
                 value={jobForm.startDate || ''}
                 onChange={(e) => setJobForm({ ...jobForm, startDate: e.target.value })}
-                className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none pr-10"
+                className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none pr-10 [color-scheme:dark]"
+                title="Click to open calendar picker"
               />
-              <i className="fas fa-calendar text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+              <i className="fas fa-calendar-alt text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             </div>
+            <p className="text-[10px] text-gray-500 mt-1">Click to pick a date from the calendar</p>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Next Due Date</label>
@@ -736,10 +748,12 @@ function JobModal({
                 type="date"
                 value={jobForm.warrantyEndDate || ''}
                 onChange={(e) => setJobForm({ ...jobForm, warrantyEndDate: e.target.value })}
-                className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none pr-10"
+                className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none pr-10 [color-scheme:dark]"
+                title="Click to open calendar picker"
               />
-              <i className="fas fa-calendar text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+              <i className="fas fa-calendar-alt text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             </div>
+            <p className="text-[10px] text-gray-500 mt-1">Click to pick a date from the calendar</p>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Frequency</label>
@@ -757,6 +771,22 @@ function JobModal({
               </select>
               <i className="fas fa-chevron-down text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"></i>
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Contract Value (£)</label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={jobForm.amount == null || jobForm.amount === 0 ? '' : jobForm.amount}
+              onChange={(e) => {
+                const v = e.target.value;
+                setJobForm({ ...jobForm, amount: v === '' ? 0 : Math.max(0, parseFloat(v) || 0) });
+              }}
+              placeholder="e.g. 1200"
+              className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
+            />
+            <p className="text-[10px] text-gray-500 mt-1">Used for Revenue at Risk when certificate is overdue</p>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Notes</label>

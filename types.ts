@@ -30,12 +30,20 @@ export interface Job {
   customerEmail?: string;
   customerPhone?: string;
   customerAddress?: string;
+  customerPostcode?: string;
+  contactName?: string;
+  frequency?: string;
   status: JobStatus;
   startDate: string;
   warrantyEndDate: string;
   paymentStatus: 'PAID' | 'UNPAID' | 'PARTIAL';
   amount: number;
   notes?: JobNote[];
+  certificateNumber?: string;
+  technician?: string;
+  greaseRating?: string;
+  ductLength?: string;
+  tr19Compliant?: boolean;
 }
 
 export interface QuoteRequest {

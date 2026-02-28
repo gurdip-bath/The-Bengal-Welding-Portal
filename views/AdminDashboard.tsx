@@ -3,13 +3,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { MOCK_JOBS } from '../mockData';
 import { JobStatus, QuoteRequest, Job } from '../types';
+import { getAllUsers, registerEmployee } from '../lib/auth';
 
 interface AdminDashboardProps {
   quotes: QuoteRequest[];
   onUpdateQuote: (id: string, price: number, notes: string) => void;
 }
 
-type DashboardFilter = JobStatus | 'ALL' | 'QUOTES' | 'QUOTES_PAID' | 'EXPIRING' | 'WARRANTIES' | 'CUSTOMERS';
+type DashboardFilter = JobStatus | 'ALL' | 'QUOTES' | 'QUOTES_PAID' | 'EXPIRING' | 'WARRANTIES' | 'CUSTOMERS' | 'EMPLOYEES';
 type ViewMode = 'LIST' | 'CALENDAR';
 
 interface CustomerProfile {
@@ -78,6 +79,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
 
   const [priceInput, setPriceInput] = useState('');
   const [notesInput, setNotesInput] = useState('');
+
+  // Employee creation
+  const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
+  const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', password: '' });
+  const [employeeError, setEmployeeError] = useState('');
+  const [employeeSuccess, setEmployeeSuccess] = useState(false);
   
   // Warranty Date States
   const [warrantyStartDate, setWarrantyStartDate] = useState('');
@@ -120,6 +127,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
     matchesSearch(c.id) || matchesSearch(c.name) || matchesSearch(c.email) || matchesSearch(c.phone) || matchesSearch(c.address)
   );
 
+  const employees = getAllUsers().filter(u => u.role === 'ADMIN');
+  const filteredEmployeesList = employees.filter(e =>
+    matchesSearch(e.name) || matchesSearch(e.email) || matchesSearch(e.id)
+  );
+
   const now = new Date();
   const ninetyDaysFromNow = new Date();
   ninetyDaysFromNow.setDate(now.getDate() + 90);
@@ -135,7 +147,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
   const paidQuotes = quotes.filter(q => q.status === 'PAID');
 
   const filteredJobs = 
-    ['QUOTES', 'QUOTES_PAID', 'CUSTOMERS'].includes(filter) ? [] : 
+    ['QUOTES', 'QUOTES_PAID', 'CUSTOMERS', 'EMPLOYEES'].includes(filter) ? [] : 
     filter === 'WARRANTIES' ? activeWarranties.filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate)) :
     filter === 'EXPIRING' ? expiringJobs.filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate)) :
     filter === 'ALL' ? jobs.filter(j => matchesSearch(j.title) || matchesSearch(j.customerName) || matchesSearch(j.customerId) || matchesSearch(j.warrantyEndDate)) : 
@@ -149,7 +161,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
 
   const generateInviteLink = (job: Job) => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const inviteLink = `${baseUrl}#/login/customer?code=${job.id}`;
+    const inviteLink = `${baseUrl}#/login?code=${job.id}`;
     navigator.clipboard.writeText(inviteLink);
     alert(`Invite Link copied for ${job.customerName || 'Customer'}!\n\nThis link uses Account ID: ${job.customerId}\n\nLink: ${inviteLink}`);
   };
@@ -236,6 +248,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
     if (selectedCustomerDetail) {
       setCustomerEditForm({ ...selectedCustomerDetail });
       setIsEditCustomerModalOpen(true);
+    }
+  };
+
+  const handleAddEmployee = () => {
+    setEmployeeError('');
+    setEmployeeSuccess(false);
+    if (!employeeForm.name.trim()) {
+      setEmployeeError('Please enter the employee name.');
+      return;
+    }
+    if (!employeeForm.email.trim()) {
+      setEmployeeError('Please enter the employee email.');
+      return;
+    }
+    if (!employeeForm.password || employeeForm.password.length < 6) {
+      setEmployeeError('Password must be at least 6 characters.');
+      return;
+    }
+    const result = registerEmployee({
+      name: employeeForm.name.trim(),
+      email: employeeForm.email.trim(),
+      password: employeeForm.password,
+    });
+    if (result.success) {
+      setEmployeeSuccess(true);
+      setEmployeeForm({ name: '', email: '', password: '' });
+      setTimeout(() => {
+        setIsAddEmployeeModalOpen(false);
+        setEmployeeSuccess(false);
+      }, 1500);
+    } else {
+      setEmployeeError(result.error || 'Failed to create employee.');
     }
   };
 
@@ -326,6 +370,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
           <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-users-gear"></i></div>
           <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Directory</p><p className="text-xl font-black text-white">{uniqueCustomers.length}</p></div>
         </button>
+        <button onClick={() => setFilter('EMPLOYEES')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'EMPLOYEES' ? 'border-[#F2C200] ring-2 ring-[#F2C200]/10' : 'border-[#333333]'}`}>
+          <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-user-shield"></i></div>
+          <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Employees</p><p className="text-xl font-black text-white">{employees.length}</p></div>
+        </button>
         <button onClick={() => setFilter('QUOTES')} className={`bg-[#111111] p-4 rounded-xl border-2 transition-all flex items-center space-x-4 text-left shadow-sm hover:scale-[1.02] ${filter === 'QUOTES' ? 'border-[#F2C200] ring-2 ring-[#F2C200]/10' : 'border-[#333333]'}`}>
           <div className="w-10 h-10 rounded-full bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]"><i className="fas fa-file-invoice"></i></div>
           <div><p className="text-[10px] font-black text-[#F2C200] uppercase tracking-tighter">Pending Quotes</p><p className="text-xl font-black text-white">{pendingQuotes.length}</p></div>
@@ -339,6 +387,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
             { id: 'PENDING', label: 'Pending' },
             { id: 'IN_PROGRESS', label: 'In Progress' },
             { id: 'CUSTOMERS', label: 'Customers' },
+            { id: 'EMPLOYEES', label: `Employees (${employees.length})` },
             { id: 'QUOTES', label: `Requested (${pendingQuotes.length})` },
             { id: 'QUOTES_PAID', label: `Quotes Paid (${paidQuotes.length})` },
             { id: 'WARRANTIES', label: 'Warranty Details' },
@@ -490,6 +539,59 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : filter === 'EMPLOYEES' ? (
+            <div className="animate-in slide-in-from-left-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-white">Admin Staff (Employees)</h2>
+                <button
+                  onClick={() => {
+                    setEmployeeForm({ name: '', email: '', password: '' });
+                    setEmployeeError('');
+                    setEmployeeSuccess(false);
+                    setIsAddEmployeeModalOpen(true);
+                  }}
+                  className="bg-[#F2C200] text-black px-5 py-2.5 rounded-xl font-bold text-sm flex items-center space-x-2 shadow-lg shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
+                >
+                  <i className="fas fa-user-plus"></i>
+                  <span>Add Employee</span>
+                </button>
+              </div>
+              <div className="bg-[#111111] rounded-2xl border border-[#333333] shadow-lg overflow-x-auto scrollbar-hide">
+                <table className="w-full text-left min-w-[600px]">
+                  <thead className="bg-[#1A1A1A] border-b border-[#333333]">
+                    <tr>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Email</th>
+                      <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#333333]">
+                    {filteredEmployeesList.map((emp) => (
+                      <tr key={emp.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="text-[#F2C200] font-black tracking-widest text-xs uppercase">{emp.id}</span>
+                        </td>
+                        <td className="px-6 py-4 text-white font-bold">{emp.name}</td>
+                        <td className="px-6 py-4 text-gray-300">{emp.email}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#F2C200]/20 text-[#F2C200] text-[10px] font-black uppercase tracking-widest">
+                            Admin
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredEmployeesList.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-bold uppercase tracking-widest text-xs italic">
+                          No employees found. Add an employee to give them admin access.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -918,6 +1020,68 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
               <div className="pt-6 border-t border-[#333333]">
                 <button onClick={handleSaveJob} className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A]">
                   {editingJobId ? 'Update Service Record' : 'Commence New Job'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAddEmployeeModalOpen && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[250] flex items-center justify-center p-4">
+          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-[#F2C200] p-6 text-black flex justify-between items-center">
+              <h2 className="text-xl font-bold">Add Employee (Admin)</h2>
+              <button onClick={() => setIsAddEmployeeModalOpen(false)} className="text-black hover:opacity-70"><i className="fas fa-times text-xl"></i></button>
+            </div>
+            <div className="p-8 space-y-4">
+              {employeeError && (
+                <div className="p-3 rounded-xl bg-red-900/30 border border-red-800/50 text-red-400 text-sm font-medium">
+                  {employeeError}
+                </div>
+              )}
+              {employeeSuccess && (
+                <div className="p-3 rounded-xl bg-green-900/30 border border-green-800/50 text-green-400 text-sm font-medium">
+                  Employee created. They can now sign in with admin access.
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Full Name</label>
+                <input
+                  type="text"
+                  value={employeeForm.name}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })}
+                  placeholder="e.g. Jane Smith"
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Email Address</label>
+                <input
+                  type="email"
+                  value={employeeForm.email}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
+                  placeholder="employee@bengalwelding.co.uk"
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Password (min 6 characters)</label>
+                <input
+                  type="password"
+                  value={employeeForm.password}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, password: e.target.value })}
+                  placeholder="Set temporary password"
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">Share this password with the employee so they can sign in.</p>
+              </div>
+              <div className="pt-4 border-t border-[#333333]">
+                <button
+                  onClick={handleAddEmployee}
+                  className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
+                >
+                  Create Employee Account
                 </button>
               </div>
             </div>

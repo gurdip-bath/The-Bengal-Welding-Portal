@@ -21,6 +21,7 @@ import Login from './views/Login';
 import SignUp from './views/SignUp';
 import JobDetails from './views/JobDetails';
 import AIAssistant from './components/AIAssistant';
+import AddToHomeScreenPrompt from './components/AddToHomeScreenPrompt';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -139,6 +140,7 @@ const App: React.FC = () => {
         </main>
 
         {user && <AIAssistant />}
+        <AddToHomeScreenPrompt aboveBottomNav={!!user && user.role !== 'ADMIN'} />
       </div>
     </Router>
   );

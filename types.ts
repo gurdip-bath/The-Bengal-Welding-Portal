@@ -58,7 +58,7 @@ export interface QuoteRequest {
   customerName: string;
   customerEmail: string;
   date: string;
-  status: 'NEW' | 'QUOTED' | 'PAID';
+  status: 'NEW' | 'QUOTED' | 'PENDING_PAYMENT' | 'PAID';
   price?: number;
   adminNotes?: string;
   customerNotes?: string;

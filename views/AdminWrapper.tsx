@@ -31,6 +31,7 @@ interface AdminWrapperProps {
 const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote, onLogout }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [quoteToast, setQuoteToast] = useState(false);
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<CustomerProfile | null>(null);
   const [isEditCustomerModalOpen, setIsEditCustomerModalOpen] = useState(false);
   const [customerEditForm, setCustomerEditForm] = useState<CustomerProfile | null>(null);
@@ -59,9 +60,9 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
   const [priceInput, setPriceInput] = useState('');
   const [notesInput, setNotesInput] = useState('');
   const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
-  const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', password: '' });
+  const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', password: '', grantAdminAccess: false });
   const [employeeError, setEmployeeError] = useState('');
-  const [employeeSuccess, setEmployeeSuccess] = useState(false);
+  const [employeeSuccess, setEmployeeSuccess] = useState<boolean | { hadAdminAccess: boolean }>(false);
   const [warrantyStartDate, setWarrantyStartDate] = useState('');
   const [warrantyEndDate, setWarrantyEndDate] = useState('');
   const [viewMode, setViewMode] = useState<'LIST' | 'CALENDAR'>('LIST');
@@ -130,12 +131,12 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
     localStorage.setItem('bengal_jobs', JSON.stringify(updated));
   };
 
-  const generateInviteLink = (job: Job) => {
+  const copySignUpLink = (job: Job) => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const inviteLink = `${baseUrl}#/login?code=${job.id}`;
-    navigator.clipboard.writeText(inviteLink);
+    const signUpLink = `${baseUrl}#/signup`;
+    navigator.clipboard.writeText(signUpLink);
     alert(
-      `Invite Link copied for ${job.customerName || 'Customer'}!\n\nThis link uses Account ID: ${job.customerId}\n\nLink: ${inviteLink}`
+      `Sign-up link copied for ${job.customerName || 'Customer'}!\n\nShare this link so they can create their own account.\n\nLink: ${signUpLink}`
     );
   };
 
@@ -239,7 +240,7 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
     alert('Customer contact details updated across all service records.');
   };
 
-  const handleAddEmployee = () => {
+  const handleAddEmployee = async () => {
     setEmployeeError('');
     setEmployeeSuccess(false);
     if (!employeeForm.name.trim()) {
@@ -254,14 +255,15 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
       setEmployeeError('Password must be at least 6 characters.');
       return;
     }
-    const result = registerEmployee({
+    const result = await registerEmployee({
       name: employeeForm.name.trim(),
       email: employeeForm.email.trim(),
       password: employeeForm.password,
+      grantAdminAccess: employeeForm.grantAdminAccess,
     });
     if (result.success) {
-      setEmployeeSuccess(true);
-      setEmployeeForm({ name: '', email: '', password: '' });
+      setEmployeeSuccess({ hadAdminAccess: employeeForm.grantAdminAccess });
+      setEmployeeForm({ name: '', email: '', password: '', grantAdminAccess: false });
       setTimeout(() => {
         setIsAddEmployeeModalOpen(false);
         setEmployeeSuccess(false);
@@ -272,13 +274,19 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
   };
 
   const openAddEmployeeModal = () => {
-    setEmployeeForm({ name: '', email: '', password: '' });
+    setEmployeeForm({ name: '', email: '', password: '', grantAdminAccess: false });
     setEmployeeError('');
     setEmployeeSuccess(false);
     setIsAddEmployeeModalOpen(true);
   };
 
   const openNewCertificate = () => openAddJobModal();
+
+  const handleUpdateQuoteWithToast = (id: string, price: number, notes: string) => {
+    onUpdateQuote(id, price, notes);
+    setQuoteToast(true);
+    setTimeout(() => setQuoteToast(false), 3000);
+  };
 
   const getStatusStyles = (status: JobStatus) => {
     switch (status) {
@@ -299,13 +307,13 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
     jobs,
     setJobs,
     quotes,
-    onUpdateQuote,
+    onUpdateQuote: handleUpdateQuoteWithToast,
     searchQuery,
     setSearchQuery,
     uniqueCustomers,
     openAddJobModal,
     openEditJobModal,
-    generateInviteLink,
+    copySignUpLink,
     updateStatus,
     handleDeleteJob,
     selectedQuote,
@@ -384,9 +392,16 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
             setPriceInput={setPriceInput}
             notesInput={notesInput}
             setNotesInput={setNotesInput}
-            onUpdateQuote={onUpdateQuote}
+            onUpdateQuote={handleUpdateQuoteWithToast}
             onClose={() => setSelectedQuote(null)}
           />
+        )}
+
+        {quoteToast && (
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#F2C200] text-black px-6 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce z-[700]">
+            <i className="fas fa-check-circle text-black"></i>
+            <span className="text-sm font-bold uppercase tracking-tight">Quote sent to customer!</span>
+          </div>
         )}
 
         {editingWarrantyJob && (
@@ -837,7 +852,7 @@ function EmployeeModal({ form, setForm, error, success, onSave, onClose }: any) 
           )}
           {success && (
             <div className="p-3 rounded-xl bg-green-900/30 border border-green-800/50 text-green-400 text-sm font-medium">
-              Employee created. They can now sign in with admin access.
+              Employee account created. {typeof success === 'object' && success.hadAdminAccess ? 'They can sign in with admin view access.' : 'They will see the customer dashboard until you grant admin access.'}
             </div>
           )}
           <div>
@@ -870,6 +885,15 @@ function EmployeeModal({ form, setForm, error, success, onSave, onClose }: any) 
               className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
             />
           </div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.grantAdminAccess ?? false}
+              onChange={(e) => setForm({ ...form, grantAdminAccess: e.target.checked })}
+              className="w-5 h-5 rounded border border-[#333333] bg-black text-[#F2C200] focus:ring-[#F2C200]"
+            />
+            <span className="text-sm font-bold text-gray-300">Grant admin view access</span>
+          </label>
           <button onClick={onSave} className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A] hover:brightness-110">
             Create Employee Account
           </button>

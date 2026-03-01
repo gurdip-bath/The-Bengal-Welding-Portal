@@ -68,6 +68,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
         return 'bg-green-100 text-green-700';
       case 'NEW':
       case 'QUOTED':
+      case 'PENDING_PAYMENT':
       case 'PENDING':
       case 'IN_PROGRESS':
         return 'bg-[#FFF9E6] text-[#B28900]';
@@ -75,6 +76,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
         return 'bg-red-100 text-red-700';
       default:
         return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const formatQuoteStatus = (status: string) => {
+    switch (status) {
+      case 'QUOTED':
+        return 'Sent to Customer';
+      case 'PENDING_PAYMENT':
+        return 'Payment in Progress';
+      default:
+        return status.replace(/_/g, ' ');
     }
   };
 
@@ -166,22 +178,27 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
               <p className="text-gray-400 text-sm font-medium">Pending Payments</p>
               <p className="text-2xl font-bold text-white">
                 £{(myJobs.filter(j => j.paymentStatus !== 'PAID').reduce((acc, curr) => acc + curr.amount, 0) + 
-                   myQuotes.filter(q => q.status === 'QUOTED').reduce((acc, curr) => acc + (curr.price || 0), 0)).toLocaleString()}
+                   myQuotes.filter(q => q.status === 'QUOTED' || q.status === 'PENDING_PAYMENT').reduce((acc, curr) => acc + (curr.price || 0), 0)).toLocaleString()}
               </p>
             </div>
           </div>
 
-          {myQuotes.some(q => q.status === 'QUOTED') && (
+          {myQuotes.some(q => q.status === 'QUOTED' || q.status === 'PENDING_PAYMENT') && (
             <section className="animate-in slide-in-from-left-4">
               <h2 className="text-lg font-bold text-[#F2C200] mb-4">Pending Quotes</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {myQuotes.filter(q => q.status === 'QUOTED').map(quote => (
+                {myQuotes.filter(q => q.status === 'QUOTED' || q.status === 'PENDING_PAYMENT').map(quote => (
                   <div key={quote.id} className="bg-[#111111] p-5 rounded-2xl border border-[#333333] shadow-lg flex flex-col">
                     <div className="flex items-start space-x-4 mb-4">
                       <img src={quote.productImage} alt="" className="w-16 h-16 rounded-xl object-contain bg-black border border-[#333333] p-2" />
                       <div>
                         <h3 className="font-bold text-white">{quote.productName}</h3>
                         <p className="text-2xl font-black mt-1 text-[#F2C200]">£{quote.price?.toLocaleString()}</p>
+                        {quote.status === 'PENDING_PAYMENT' && (
+                          <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#FFF9E6] text-[#B28900]">
+                            Payment in progress
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="bg-black/50 border border-[#333333] p-3 rounded-xl mb-4">
@@ -193,7 +210,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                       className="w-full bg-[#F2C200] text-black py-3 rounded-xl font-bold flex items-center justify-center space-x-2 hover:brightness-110 transition-all shadow-md"
                     >
                       <i className="fab fa-paypal"></i>
-                      <span>Accept & Pay £{quote.price?.toLocaleString()}</span>
+                      <span>{quote.status === 'PENDING_PAYMENT' ? 'Complete Payment' : 'Accept & Pay'} £{quote.price?.toLocaleString()}</span>
                     </button>
                   </div>
                 ))}
@@ -299,7 +316,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${getStatusColor(item.status)}`}>
-                          {item.status.replace('_', ' ')}
+                          {formatQuoteStatus(item.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">

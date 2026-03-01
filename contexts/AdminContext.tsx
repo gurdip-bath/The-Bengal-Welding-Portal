@@ -20,7 +20,7 @@ interface AdminContextValue {
   uniqueCustomers: CustomerProfile[];
   openAddJobModal: () => void;
   openEditJobModal: (job: Job) => void;
-  generateInviteLink: (job: Job) => void;
+  copySignUpLink: (job: Job) => void;
   updateStatus: (id: string, status: JobStatus) => void;
   handleDeleteJob: (id: string) => void;
   selectedQuote: QuoteRequest | null;
@@ -28,6 +28,7 @@ interface AdminContextValue {
   selectedCustomerDetail: CustomerProfile | null;
   setSelectedCustomerDetail: (c: CustomerProfile | null) => void;
   openAddEmployeeModal: () => void;
+  refreshEmployees?: () => void;
 }
 
 const AdminContext = createContext<AdminContextValue | null>(null);

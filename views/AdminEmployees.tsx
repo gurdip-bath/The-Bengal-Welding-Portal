@@ -1,12 +1,15 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAdmin } from '../contexts/AdminContext';
 import { getAllUsers } from '../lib/auth';
+import type { StoredUser } from '../lib/auth';
 
 const AdminEmployees: React.FC = () => {
   const { searchQuery, setSearchQuery, openAddEmployeeModal } = useAdmin();
+  const [employees, setEmployees] = useState<StoredUser[]>([]);
 
-  const employees = getAllUsers().filter((u) => u.role === 'ADMIN');
+  useEffect(() => {
+    getAllUsers().then((users) => setEmployees(users.filter((u) => u.role === 'ADMIN')));
+  }, []);
   const matchesSearch = (text?: string) =>
     !searchQuery || (text || '').toLowerCase().includes(searchQuery.toLowerCase());
   const filteredEmployees = employees.filter(

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { User } from '../types';
-import { validateCredentials } from '../lib/auth';
+import { signIn } from '../lib/auth';
 import { COLORS, LOGO, BRAND_NAME } from '../constants';
 
 interface LoginProps {
@@ -15,7 +15,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!email.trim() || !password) {
@@ -23,12 +23,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       return;
     }
     setLoading(true);
-    const user = validateCredentials(email.trim(), password);
-    setLoading(false);
-    if (user) {
-      onLogin(user);
-    } else {
-      setError('Invalid email or password. Please try again.');
+    try {
+      const result = await signIn(email.trim(), password);
+      if (result.user) {
+        onLogin(result.user);
+      } else {
+        setError(result.error || 'Invalid email or password. Please try again.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign in failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 

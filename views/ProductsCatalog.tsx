@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MOCK_PRODUCTS } from '../mockData';
 import { Product } from '../types';
 import { User } from '../types';
-import { createDirectDebitCheckoutSession } from '../lib/api';
+import { createGreasePlanCheckoutSession } from '../lib/api';
 
 interface ProductsCatalogProps {
   onRequestQuote: (product: Product, notes?: string, image?: string) => void;
@@ -16,68 +16,33 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote, user 
   const [toastMessage, setToastMessage] = useState('');
   const [subscribing, setSubscribing] = useState(false);
   const [subError, setSubError] = useState<string | null>(null);
-  const [activeSpecialQuoteProduct, setActiveSpecialQuoteProduct] = useState<Product | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     if (searchParams.get('subscribed') === 'success') {
-      setToastMessage('Direct Debit subscription set up! You will receive confirmation shortly.');
+      setToastMessage('Subscription set up! You will receive confirmation shortly.');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 5000);
       setSearchParams({});
     }
   }, [searchParams, setSearchParams]);
-  
-  // Special quote state
-  const [specialNotes, setSpecialNotes] = useState('');
-  const [specialMedia, setSpecialMedia] = useState<{url: string, type: string} | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const categories = ['All', ...new Set(MOCK_PRODUCTS.map(p => p.category))];
   const filteredProducts = selectedCategory === 'All' 
     ? MOCK_PRODUCTS 
     : MOCK_PRODUCTS.filter(p => p.category === selectedCategory);
 
   const handleQuoteRequest = (product: Product) => {
-    if (product.name === 'Grease Cleaning Service Plan') {
-      setActiveSpecialQuoteProduct(product);
-    } else {
-      onRequestQuote(product);
-      setToastMessage('Request sent! Confirmation email coming soon.');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    }
+    onRequestQuote(product);
+    setToastMessage('Request sent! Confirmation email coming soon.');
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const isVideo = file.type.startsWith('video/');
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSpecialMedia({ url: reader.result as string, type: isVideo ? 'video' : 'image' });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const submitSpecialQuote = () => {
-    if (activeSpecialQuoteProduct) {
-      onRequestQuote(activeSpecialQuoteProduct, specialNotes, specialMedia?.url);
-      setActiveSpecialQuoteProduct(null);
-      setSpecialNotes('');
-      setSpecialMedia(null);
-      setToastMessage('Request sent! Confirmation email coming soon.');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    }
-  };
-
-  const handleDirectDebitSubscribe = async () => {
+  const handleGreasePlanSubscribe = async () => {
     setSubscribing(true);
     setSubError(null);
     try {
-      const url = await createDirectDebitCheckoutSession(user?.email);
+      const url = await createGreasePlanCheckoutSession(user?.email);
       window.location.href = url;
     } catch (err) {
       setSubError(err instanceof Error ? err.message : 'Failed to start checkout');
@@ -134,19 +99,20 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote, user 
                     {product.name === 'Grease Cleaning Service Plan' && <span className="text-sm font-normal text-gray-400">/mo</span>}
                   </span>
                   <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleQuoteRequest(product)}
-                      className="bg-[#F2C200] text-black px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all"
-                    >
-                      Request Quote
-                    </button>
-                    {product.name === 'Grease Cleaning Service Plan' && (
+                    {product.name === 'Grease Cleaning Service Plan' ? (
                       <button 
-                        onClick={handleDirectDebitSubscribe}
+                        onClick={handleGreasePlanSubscribe}
                         disabled={subscribing}
                         className="bg-[#635BFF] text-white px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all disabled:opacity-60"
                       >
                         {subscribing ? 'Loading…' : 'Subscribe'}
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => handleQuoteRequest(product)}
+                        className="bg-[#F2C200] text-black px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all"
+                      >
+                        Request Quote
                       </button>
                     )}
                   </div>
@@ -157,101 +123,9 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote, user 
         ))}
       </div>
 
-      {/* Special Quote Modal */}
-      {activeSpecialQuoteProduct && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="bg-[#F2C200] p-6 text-black flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold">Service Quote Request</h2>
-                <p className="text-xs font-bold opacity-80 uppercase">{activeSpecialQuoteProduct.name}</p>
-              </div>
-              <button onClick={() => setActiveSpecialQuoteProduct(null)} className="text-black hover:opacity-70">
-                <i className="fas fa-times text-xl"></i>
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh]">
-              <div className="p-4 bg-white/5 border border-[#333333] rounded-2xl">
-                <p className="text-sm text-[#F2C200] font-bold uppercase tracking-tight">
-                  Professional Assessment:
-                </p>
-                <p className="text-sm text-gray-300 mt-1">
-                  Upload a photo or video of the appliance to help us assess the job.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Service Details & Notes</label>
-                <textarea 
-                  rows={4}
-                  value={specialNotes}
-                  onChange={(e) => setSpecialNotes(e.target.value)}
-                  placeholder="Tell us about the appliance condition..."
-                  className="w-full px-4 py-3 bg-black border border-[#333333] rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none text-white text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Appliance Media (Optional)</label>
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-2 border-2 border-dashed border-[#333333] rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors group"
-                >
-                  {specialMedia ? (
-                    <div className="relative w-full h-48 bg-black rounded-xl overflow-hidden">
-                      {specialMedia.type === 'video' ? (
-                        <video src={specialMedia.url} className="w-full h-full object-contain" autoPlay muted loop />
-                      ) : (
-                        <img src={specialMedia.url} alt="Appliance" className="w-full h-full object-cover" />
-                      )}
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setSpecialMedia(null); }}
-                        className="absolute top-2 right-2 bg-black/80 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-600"
-                      >
-                        <i className="fas fa-trash-alt text-xs"></i>
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center text-gray-500 group-hover:text-[#F2C200] transition-colors mb-2">
-                        <i className="fas fa-clapperboard text-xl"></i>
-                      </div>
-                      <p className="text-sm font-bold text-gray-300 text-center">Click to upload <b>Photo or Video</b></p>
-                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest">Max 20MB</p>
-                    </>
-                  )}
-                  <input 
-                    type="file" 
-                    accept="image/*,video/*" 
-                    className="hidden" 
-                    ref={fileInputRef} 
-                    onChange={handleFileChange}
-                    capture="environment"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <button 
-                  onClick={handleDirectDebitSubscribe}
-                  disabled={subscribing}
-                  className="w-full bg-[#635BFF] text-white py-4 rounded-xl font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  <i className="fas fa-university"></i>
-                  {subscribing ? 'Redirecting…' : 'Subscribe with Monthly Direct Debit — £499/mo'}
-                </button>
-                {subError && <p className="text-sm text-red-400 text-center">{subError}</p>}
-                <p className="text-xs text-gray-500 text-center">or</p>
-                <button 
-                  onClick={submitSpecialQuote}
-                  className="w-full bg-[#F2C200] text-black py-4 rounded-xl font-bold shadow-lg shadow-[#F2C2001A] hover:brightness-110 active:scale-95 transition-all"
-                >
-                  Submit Quote Request
-                </button>
-              </div>
-            </div>
-          </div>
+      {subError && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-red-500/90 text-white px-4 py-2 rounded-lg text-sm z-[120]">
+          {subError}
         </div>
       )}
 

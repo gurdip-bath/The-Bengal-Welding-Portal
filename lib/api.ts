@@ -1,5 +1,6 @@
 /**
- * API client for Stripe Direct Debit checkout (Supabase Edge Function).
+ * API client for Stripe checkout (Supabase Edge Function).
+ * Grease Cleaning Service Plan — subscription only.
  */
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -8,7 +9,7 @@ const API_URL = SUPABASE_URL
   ? `${SUPABASE_URL}/functions/v1/create-checkout-session`
   : '';
 
-export async function createDirectDebitCheckoutSession(customerEmail?: string): Promise<string> {
+export async function createGreasePlanCheckoutSession(customerEmail?: string): Promise<string> {
   if (!API_URL || !SUPABASE_ANON_KEY) throw new Error('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set');
   const res = await fetch(API_URL, {
     method: 'POST',

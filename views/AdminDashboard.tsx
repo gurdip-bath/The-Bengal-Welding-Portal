@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { MOCK_JOBS } from '../mockData';
 import { JobStatus, QuoteRequest, Job } from '../types';
 import { getAllUsers, registerEmployee } from '../lib/auth';
+import type { StoredUser } from '../lib/auth';
 
 interface AdminDashboardProps {
   quotes: QuoteRequest[];
@@ -81,10 +82,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
   const [notesInput, setNotesInput] = useState('');
 
   // Employee creation
+  const [employees, setEmployees] = useState<StoredUser[]>([]);
   const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
-  const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', password: '' });
+  const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', password: '', grantAdminAccess: false });
   const [employeeError, setEmployeeError] = useState('');
-  const [employeeSuccess, setEmployeeSuccess] = useState(false);
+  const [employeeSuccess, setEmployeeSuccess] = useState<boolean | { hadAdminAccess: boolean }>(false);
+
+  useEffect(() => {
+    getAllUsers().then((users) => setEmployees(users.filter((u) => u.role === 'ADMIN')));
+  }, []);
   
   // Warranty Date States
   const [warrantyStartDate, setWarrantyStartDate] = useState('');
@@ -127,7 +133,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
     matchesSearch(c.id) || matchesSearch(c.name) || matchesSearch(c.email) || matchesSearch(c.phone) || matchesSearch(c.address)
   );
 
-  const employees = getAllUsers().filter(u => u.role === 'ADMIN');
   const filteredEmployeesList = employees.filter(e =>
     matchesSearch(e.name) || matchesSearch(e.email) || matchesSearch(e.id)
   );
@@ -143,7 +148,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
     return expiryDate > now && expiryDate <= ninetyDaysFromNow;
   });
 
-  const pendingQuotes = quotes.filter(q => q.status === 'NEW' || q.status === 'QUOTED');
+  const pendingQuotes = quotes.filter(q => q.status === 'NEW' || q.status === 'QUOTED' || q.status === 'PENDING_PAYMENT');
   const paidQuotes = quotes.filter(q => q.status === 'PAID');
 
   const filteredJobs = 
@@ -159,11 +164,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
     localStorage.setItem('bengal_jobs', JSON.stringify(updated));
   };
 
-  const generateInviteLink = (job: Job) => {
+  const copySignUpLink = (job: Job) => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const inviteLink = `${baseUrl}#/login?code=${job.id}`;
-    navigator.clipboard.writeText(inviteLink);
-    alert(`Invite Link copied for ${job.customerName || 'Customer'}!\n\nThis link uses Account ID: ${job.customerId}\n\nLink: ${inviteLink}`);
+    const signUpLink = `${baseUrl}#/signup`;
+    navigator.clipboard.writeText(signUpLink);
+    alert(`Sign-up link copied for ${job.customerName || 'Customer'}!\n\nShare this link so they can create their own account.\n\nLink: ${signUpLink}`);
   };
 
   const openAddJobModal = () => {
@@ -251,7 +256,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
     }
   };
 
-  const handleAddEmployee = () => {
+  const handleAddEmployee = async () => {
     setEmployeeError('');
     setEmployeeSuccess(false);
     if (!employeeForm.name.trim()) {
@@ -266,14 +271,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
       setEmployeeError('Password must be at least 6 characters.');
       return;
     }
-    const result = registerEmployee({
+    const result = await registerEmployee({
       name: employeeForm.name.trim(),
       email: employeeForm.email.trim(),
       password: employeeForm.password,
+      grantAdminAccess: employeeForm.grantAdminAccess,
     });
     if (result.success) {
-      setEmployeeSuccess(true);
-      setEmployeeForm({ name: '', email: '', password: '' });
+      setEmployeeSuccess({ hadAdminAccess: employeeForm.grantAdminAccess });
+      setEmployeeForm({ name: '', email: '', password: '', grantAdminAccess: false });
+      getAllUsers().then((users) => setEmployees(users.filter((u) => u.role === 'ADMIN')));
       setTimeout(() => {
         setIsAddEmployeeModalOpen(false);
         setEmployeeSuccess(false);
@@ -549,7 +556,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                 <h2 className="text-lg font-bold text-white">Admin Staff (Employees)</h2>
                 <button
                   onClick={() => {
-                    setEmployeeForm({ name: '', email: '', password: '' });
+                    setEmployeeForm({ name: '', email: '', password: '', grantAdminAccess: false });
                     setEmployeeError('');
                     setEmployeeSuccess(false);
                     setIsAddEmployeeModalOpen(true);
@@ -658,7 +665,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end space-x-3">
-                          <button onClick={() => generateInviteLink(job)} className="text-gray-500 hover:text-[#F2C200]" title="Copy Invite Link">
+                          <button onClick={() => copySignUpLink(job)} className="text-gray-500 hover:text-[#F2C200]" title="Copy Sign-Up Link">
                             <i className="fas fa-share-nodes"></i>
                           </button>
                           <button onClick={() => openEditJobModal(job)} className="text-gray-500 hover:text-[#F2C200]" title="Edit Job">
@@ -1042,7 +1049,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
               )}
               {employeeSuccess && (
                 <div className="p-3 rounded-xl bg-green-900/30 border border-green-800/50 text-green-400 text-sm font-medium">
-                  Employee created. They can now sign in with admin access.
+                  Employee account created. {typeof employeeSuccess === 'object' && employeeSuccess.hadAdminAccess ? 'They can sign in with admin view access.' : 'They will see the customer dashboard until you grant admin access.'}
                 </div>
               )}
               <div>
@@ -1076,6 +1083,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ quotes, onUpdateQuote }
                 />
                 <p className="text-[10px] text-gray-500 mt-1">Share this password with the employee so they can sign in.</p>
               </div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={employeeForm.grantAdminAccess ?? false}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, grantAdminAccess: e.target.checked })}
+                  className="w-5 h-5 rounded border border-[#333333] bg-black text-[#F2C200] focus:ring-[#F2C200]"
+                />
+                <span className="text-sm font-bold text-gray-300">Grant admin view access</span>
+              </label>
               <div className="pt-4 border-t border-[#333333]">
                 <button
                   onClick={handleAddEmployee}

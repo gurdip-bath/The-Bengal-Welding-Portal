@@ -77,7 +77,7 @@ const AdminDashboardHome: React.FC = () => {
     const expiry = new Date(j.warrantyEndDate);
     return expiry > now && expiry <= ninetyDaysFromNow;
   });
-  const pendingQuotes = quotes.filter((q) => q.status === 'NEW' || q.status === 'QUOTED');
+  const pendingQuotes = quotes.filter((q) => q.status === 'NEW' || q.status === 'QUOTED' || q.status === 'PENDING_PAYMENT');
 
   const getPostcode = (job: Job) =>
     job.customerPostcode || (job.customerAddress ? job.customerAddress.split(',').pop()?.trim() || '' : '');

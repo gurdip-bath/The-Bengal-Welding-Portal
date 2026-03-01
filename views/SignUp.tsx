@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User } from '../types';
-import { registerCustomer } from '../lib/auth';
+import { signUpCustomer } from '../lib/auth';
 import { COLORS, LOGO, BRAND_NAME } from '../constants';
 
 interface SignUpProps {
@@ -56,11 +56,11 @@ const SignUp: React.FC<SignUpProps> = ({ onLogin }) => {
     setStep(2);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const result = registerCustomer({
+    const result = await signUpCustomer({
       name: form.name.trim(),
       email: form.email.trim(),
       password: form.password,

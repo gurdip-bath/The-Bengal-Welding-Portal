@@ -1,3 +1,4 @@
+// @ts-nocheck - Deno runtime; IDE doesn't resolve Deno/esm.sh types
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "");
@@ -14,11 +15,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { customerEmail } = await req.json();
+    let customerEmail: string | undefined;
+    try {
+      const body = await req.json().catch(() => ({}));
+      customerEmail = body?.customerEmail;
+    } catch {
+      // Empty or invalid body is ok
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      payment_method_types: ["bacs_debit"],
+      payment_method_types: ["card", "bacs_debit"],
       line_items: [
         {
           price_data: {

@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { User, QuoteRequest, Product, Job } from './types';
-import { MOCK_JOBS } from './mockData';
+import { User, QuoteRequest, Product } from './types';
+import { supabase } from './lib/supabase';
+import { mapSessionToUserWithProfile, signOut as authSignOut } from './lib/auth';
 import Navbar from './components/Navbar';
 import CustomerDashboard from './views/CustomerDashboard';
 import AdminWrapper from './views/AdminWrapper';
@@ -27,48 +27,40 @@ const App: React.FC = () => {
   const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('bengal_user');
     const savedQuotes = localStorage.getItem('bengal_quotes');
-    
-    // Check for magic link auto-login
-    const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1]);
-    const inviteCode = urlParams.get('code');
-
-    if (inviteCode) {
-      const localJobs = JSON.parse(localStorage.getItem('bengal_jobs') || '[]');
-      const allJobs = localJobs.length > 0 ? localJobs : MOCK_JOBS;
-      const matchingJob = allJobs.find((j: Job) => j.id === inviteCode);
-      
-      if (matchingJob) {
-        // PERSONALIZED LOGIN: Use the name assigned by the admin to this specific job
-        const customerUser: User = { 
-          id: matchingJob.customerId || `u-${inviteCode}`,
-          name: matchingJob.customerName || 'Valued Customer',
-          email: 'client@bengalwelding.co.uk',
-          role: 'CUSTOMER'
-        };
-        setUser(customerUser);
-        localStorage.setItem('bengal_user', JSON.stringify(customerUser));
-        // Clean the URL
-        window.history.replaceState({}, document.title, window.location.pathname + window.location.hash.split('?')[0]);
-      }
-    } else if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-
     if (savedQuotes) {
       setQuotes(JSON.parse(savedQuotes));
     }
   }, []);
 
+  // Supabase auth state
+  useEffect(() => {
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = await mapSessionToUserWithProfile(session?.user ?? null);
+      setUser(user);
+    };
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const user = await mapSessionToUserWithProfile(session?.user ?? null);
+      setUser(user);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const handleLogin = (loggedInUser: User) => {
     setUser(loggedInUser);
-    localStorage.setItem('bengal_user', JSON.stringify(loggedInUser));
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('bengal_user');
+  const handleLogout = async () => {
+    try {
+      await authSignOut();
+    } finally {
+      setUser(null);
+      window.location.hash = '#/login';
+    }
   };
 
   const handleRequestQuote = (product: Product, notes?: string, image?: string) => {
@@ -100,8 +92,8 @@ const App: React.FC = () => {
 
   const handleCustomerPayQuote = (quoteId: string) => {
     window.open('https://www.paypal.com/checkoutnow', '_blank');
-    const updatedQuotes = quotes.map(q => 
-      q.id === quoteId ? { ...q, status: 'PAID' as const } : q
+    const updatedQuotes = quotes.map(q =>
+      q.id === quoteId ? { ...q, status: 'PENDING_PAYMENT' as const } : q
     );
     setQuotes(updatedQuotes);
     localStorage.setItem('bengal_quotes', JSON.stringify(updatedQuotes));

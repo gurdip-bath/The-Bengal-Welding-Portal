@@ -176,6 +176,15 @@ const AdminSurveyForm: React.FC = () => {
         </button>
       </div>
 
+      {/* Offline tip */}
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-[#333333] text-xs text-gray-400">
+        <i className="fas fa-circle-info text-[#F2C200] shrink-0"></i>
+        <p>
+          <strong className="text-gray-300">Offline-friendly:</strong> Open the app and log in before visiting sites with poor signal.
+          Surveys save to your device and work without connection.
+        </p>
+      </div>
+
       {/* SITE DETAILS */}
       <div className="space-y-3">
         <h2 className="text-[10px] font-black text-[#F2C200] uppercase tracking-widest">Site Details</h2>

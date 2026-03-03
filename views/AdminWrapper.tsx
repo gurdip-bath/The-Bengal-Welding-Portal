@@ -9,6 +9,7 @@ const CLEAR_JOBS_FOR_RENEWAL_TEST = false;
 const SEED_RENEWAL_MOCK_DATA = true;
 import { JobStatus, QuoteRequest, Job } from '../types';
 import { getAllUsers, registerEmployee } from '../lib/auth';
+import { listAllJobsForAdmin } from '../lib/jobs';
 import { AdminProvider } from '../contexts/AdminContext';
 import AdminLayout from '../components/AdminLayout';
 import { User } from '../types';
@@ -95,6 +96,25 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
       setJobs(seed);
       localStorage.setItem('bengal_jobs', JSON.stringify(seed));
     }
+  }, []);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const supabaseJobs = await listAllJobsForAdmin();
+        setJobs((prev) => {
+          const byId = new Map<string, Job>();
+          supabaseJobs.forEach((j) => byId.set(j.id, j));
+          prev.forEach((j) => {
+            if (!byId.has(j.id)) byId.set(j.id, j);
+          });
+          return Array.from(byId.values());
+        });
+      } catch {
+        // Supabase may not be configured
+      }
+    };
+    load();
   }, []);
 
   useEffect(() => {

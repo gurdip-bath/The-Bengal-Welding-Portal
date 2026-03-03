@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Job } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
+import { listServiceRequestsForAdmin } from '../lib/serviceRequests';
 
 const TR19_REPORTS_STORAGE_KEY = 'bengal_tr19_reports';
 
@@ -46,6 +47,7 @@ const AdminDashboardHome: React.FC = () => {
   const [contractValueInput, setContractValueInput] = useState('1200');
   const [jobDate, setJobDate] = useState('');
   const [calendarView, setCalendarView] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
+  const [pendingServiceRequestsCount, setPendingServiceRequestsCount] = useState(0);
   const [startTime, setStartTime] = useState('08:00');
   const [duration, setDuration] = useState(2);
   const [jobType, setJobType] = useState('TR19 Grease Clean (Kitchen Extract)');
@@ -66,6 +68,12 @@ const AdminDashboardHome: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(SCHEDULED_STORAGE_KEY, JSON.stringify(scheduledMap));
   }, [scheduledMap]);
+
+  useEffect(() => {
+    listServiceRequestsForAdmin()
+      .then((reqs) => setPendingServiceRequestsCount(reqs.filter((r) => r.status === 'pending').length))
+      .catch(() => {});
+  }, []);
 
   const now = new Date();
   const ninetyDaysFromNow = new Date();
@@ -219,8 +227,41 @@ const AdminDashboardHome: React.FC = () => {
   const dueThisMonthValue = sitesDueThisMonth.reduce((sum, s) => sum + s.contractValue, 0);
   const dueThisMonthCount = sitesDueThisMonth.length;
 
+  const jobsByDate = useMemo(() => {
+    const map: Record<string, Job[]> = {};
+    for (const job of jobs) {
+      const rawDate = job.startDate || job.warrantyEndDate;
+      if (!rawDate) continue;
+      const dateStr = rawDate.length >= 10 ? rawDate.slice(0, 10) : rawDate;
+      if (!map[dateStr]) map[dateStr] = [];
+      map[dateStr].push(job);
+    }
+    return map;
+  }, [jobs]);
+
+  const selectedJobsForDay = useMemo(() => {
+    if (!jobDate) return [];
+    return jobsByDate[jobDate] || [];
+  }, [jobDate, jobsByDate]);
+
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+      {pendingServiceRequestsCount > 0 && (
+        <Link
+          to="/dashboard/service-requests"
+          className="block p-4 rounded-xl bg-[#FFF9E6]/10 border border-[#B28900]/50 text-[#F2C200] hover:bg-[#FFF9E6]/20 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <i className="fas fa-clipboard-check text-xl" />
+            <div>
+              <p className="font-bold">You have {pendingServiceRequestsCount} pending service request{pendingServiceRequestsCount !== 1 ? 's' : ''}</p>
+              <p className="text-sm text-gray-400">Review and approve or reject</p>
+            </div>
+            <i className="fas fa-chevron-right ml-auto" />
+          </div>
+        </Link>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -441,6 +482,159 @@ const AdminDashboardHome: React.FC = () => {
           <div>
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">New Quotes</p>
             <p className="text-2xl font-black text-white">{pendingQuotes.length}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Job Calendar */}
+      <div className="bg-[#111111] rounded-2xl border border-[#333333] overflow-hidden">
+        <div className="p-4 border-b border-[#333333] flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-white">Job Calendar</h2>
+            <p className="text-xs text-gray-500 font-bold">
+              Highlighted days have scheduled or active jobs. Click a date to view jobs.
+            </p>
+          </div>
+        </div>
+        <div className="p-4 grid grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)] gap-4">
+          <div className="bg-black border border-[#333333] rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setCalendarView((v) =>
+                    v.month === 0 ? { year: v.year - 1, month: 11 } : { year: v.year, month: v.month - 1 }
+                  )
+                }
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-[#333333] hover:text-white transition-colors"
+              >
+                <i className="fas fa-chevron-left text-xs"></i>
+              </button>
+              <span className="text-sm font-bold text-white">
+                {new Date(calendarView.year, calendarView.month).toLocaleString('default', {
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCalendarView((v) =>
+                    v.month === 11 ? { year: v.year + 1, month: 0 } : { year: v.year, month: v.month + 1 }
+                  )
+                }
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-[#333333] hover:text-white transition-colors"
+              >
+                <i className="fas fa-chevron-right text-xs"></i>
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-0.5 text-center">
+              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                <div key={d} className="text-[9px] font-black text-gray-500 py-1">
+                  {d}
+                </div>
+              ))}
+              {(() => {
+                const firstDay = new Date(calendarView.year, calendarView.month, 1).getDay();
+                const daysInMonth = new Date(calendarView.year, calendarView.month + 1, 0).getDate();
+                const padding = Array.from({ length: firstDay }, (_, i) => (
+                  <div key={`p-${i}`} className="py-1.5" />
+                ));
+                const days = Array.from({ length: daysInMonth }, (_, i) => {
+                  const day = i + 1;
+                  const dateStr = `${calendarView.year}-${String(calendarView.month + 1).padStart(2, '0')}-${String(
+                    day
+                  ).padStart(2, '0')}`;
+                  const isSelected = jobDate === dateStr;
+                  const isToday = dateStr === new Date().toISOString().split('T')[0];
+                  const hasJobs = !!jobsByDate[dateStr]?.length;
+                  let baseClasses =
+                    'py-1.5 rounded-lg text-xs font-bold transition-colors border border-transparent';
+                  let stateClasses = '';
+                  if (isSelected) {
+                    stateClasses = 'bg-[#F2C200] text-black';
+                  } else if (hasJobs) {
+                    stateClasses = 'bg-[#F2C200]/15 text-[#F2C200] hover:bg-[#F2C200]/25';
+                  } else if (isToday) {
+                    stateClasses = 'bg-[#333333] text-[#F2C200]';
+                  } else {
+                    stateClasses = 'text-gray-300 hover:bg-[#333333] hover:text-white';
+                  }
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setJobDate(dateStr)}
+                      className={`${baseClasses} ${stateClasses}`}
+                    >
+                      {day}
+                    </button>
+                  );
+                });
+                return [...padding, ...days];
+              })()}
+            </div>
+            {jobDate && (
+              <p className="text-[10px] text-gray-500 mt-2 font-bold">
+                Selected:{' '}
+                {new Date(jobDate + 'T12:00:00').toLocaleDateString('en-GB', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </p>
+            )}
+          </div>
+
+          <div className="bg-black border border-[#333333] rounded-xl p-3 flex flex-col min-h-[180px]">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                Jobs on selected day
+              </p>
+              {selectedJobsForDay.length > 0 && (
+                <span className="text-[10px] font-bold text-[#F2C200]">
+                  {selectedJobsForDay.length} job{selectedJobsForDay.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            {(!jobDate || selectedJobsForDay.length === 0) && (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-xs text-gray-600 font-bold text-center px-4">
+                  Select a highlighted date to see scheduled jobs for that day.
+                </p>
+              </div>
+            )}
+            {jobDate && selectedJobsForDay.length > 0 && (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {selectedJobsForDay.map((job) => (
+                  <Link
+                    key={job.id}
+                    to={`/jobs/${job.id}`}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#111111] border border-[#333333] hover:border-[#F2C200] hover:bg-[#111111]/80 transition-colors group"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white group-hover:text-[#F2C200] truncate">
+                        {job.title || job.customerName || 'Job'}
+                      </p>
+                      <p className="text-[10px] text-gray-500 font-bold truncate">
+                        {job.customerAddress || job.id}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-white/5 text-gray-300">
+                        {job.status}
+                      </span>
+                      {job.amount != null && (
+                        <span className="text-xs font-bold text-[#F2C200]">
+                          £{job.amount.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -1,10 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { User, Job, QuoteRequest } from '../types';
 import { MOCK_JOBS } from '../mockData';
 import WarrantyCard from '../components/WarrantyCard';
 import { COLORS } from '../constants';
+import { createServiceRequest } from '../lib/api';
+import { listServiceRequestsForCustomer, type ServiceRequestRow } from '../lib/serviceRequests';
+import { listJobsForCustomer } from '../lib/jobs';
 
 interface CustomerDashboardProps {
   user: User;
@@ -14,13 +19,76 @@ interface CustomerDashboardProps {
 
 type TabType = 'ACTIVE' | 'HISTORY' | 'PROFILE';
 
+const SERVICE_REQUEST_BANNER_DISMISSED_KEY = 'bengal_sr_banner_dismissed';
+
 const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser, quotes = [], onPayQuote }) => {
   const [activeTab, setActiveTab] = useState<TabType>('ACTIVE');
   const [allJobs, setAllJobs] = useState<Job[]>([]);
+  const [supabaseJobs, setSupabaseJobs] = useState<Job[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequestRow[]>([]);
   const [user, setUser] = useState<User>(initialUser);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState<Partial<User>>({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [serviceRequest, setServiceRequest] = useState({
+    fullName: '',
+    siteName: '',
+    businessAddress: '',
+    postcode: '',
+    contactName: '',
+    contactEmail: '',
+    notes: '',
+  });
+  const [serviceRequestDate, setServiceRequestDate] = useState('');
+  const [serviceSubmitting, setServiceSubmitting] = useState(false);
+  const [serviceSuccessMessage, setServiceSuccessMessage] = useState<string | null>(null);
+  const [serviceErrorMessage, setServiceErrorMessage] = useState<string | null>(null);
+  const [serviceRequestsExpanded, setServiceRequestsExpanded] = useState(true);
+  const [notificationBannerDismissed, setNotificationBannerDismissed] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem(SERVICE_REQUEST_BANNER_DISMISSED_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const requestFormRef = React.useRef<HTMLDivElement>(null);
+
+  const dismissBanner = (id: string) => {
+    setNotificationBannerDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      sessionStorage.setItem(SERVICE_REQUEST_BANNER_DISMISSED_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const startAmend = (req: ServiceRequestRow) => {
+    setServiceRequest({
+      fullName: req.full_name,
+      siteName: req.business_name || '',
+      businessAddress: req.business_address || '',
+      postcode: req.postcode || '',
+      contactName: req.contact_name || '',
+      contactEmail: req.contact_email,
+      notes: req.notes || '',
+    });
+    setServiceRequestDate(req.requested_date);
+    requestFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const resetServiceRequestForm = () => {
+    setServiceRequest({
+      fullName: '',
+      siteName: '',
+      businessAddress: '',
+      postcode: '',
+      contactName: '',
+      contactEmail: '',
+      notes: '',
+    });
+    setServiceRequestDate('');
+  };
 
   useEffect(() => {
     const savedJobs = localStorage.getItem('bengal_jobs');
@@ -29,15 +97,34 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
     } else {
       setAllJobs(MOCK_JOBS);
     }
-    
-    // Check if user has updated profile in local storage
+
     const savedUser = localStorage.getItem('bengal_user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
   }, []);
 
-  const myJobs = allJobs.filter(j => j.customerId === user.id);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [jobs, reqs] = await Promise.all([
+          listJobsForCustomer(user.id),
+          listServiceRequestsForCustomer(user.id),
+        ]);
+        setSupabaseJobs(jobs);
+        setServiceRequests(reqs);
+      } catch {
+        // ignore - Supabase may not be configured
+      }
+    };
+    load();
+  }, [user.id]);
+
+  const localMyJobs = allJobs.filter((j) => j.customerId === user.id);
+  const seenIds = new Set<string>();
+  const myJobs = [...supabaseJobs, ...localMyJobs].filter((j) =>
+    seenIds.has(j.id) ? false : (seenIds.add(j.id), true)
+  );
   const myQuotes = quotes.filter(q => q.customerId === user.id);
 
   const historyItems = [
@@ -160,6 +247,108 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
 
       {activeTab === 'ACTIVE' && (
         <>
+          {serviceRequests
+            .filter((r) => (r.status === 'approved' || r.status === 'rejected') && !notificationBannerDismissed.has(r.id))
+            .slice(0, 3)
+            .map((r) => (
+              <div
+                key={r.id}
+                className={`rounded-xl border p-4 flex items-center justify-between gap-4 ${
+                  r.status === 'approved'
+                    ? 'bg-green-900/20 border-green-800/50'
+                    : 'bg-amber-900/20 border-amber-700/50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <i className={`fas ${r.status === 'approved' ? 'fa-check-circle text-green-400' : 'fa-exclamation-circle text-amber-400'}`} />
+                  <div>
+                    <p className="font-bold text-white">
+                      {r.status === 'approved'
+                        ? 'Your service request has been approved'
+                        : 'Your service request was rejected'}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      {r.status === 'approved'
+                        ? 'Your scheduled job will appear below.'
+                        : 'Please view your request and amend as per the notes.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {r.status === 'rejected' && (
+                    <button
+                      onClick={() => startAmend(r)}
+                      className="px-4 py-2 rounded-lg bg-[#F2C200] text-black font-bold text-sm hover:brightness-110"
+                    >
+                      Amend Request
+                    </button>
+                  )}
+                  <button
+                    onClick={() => dismissBanner(r.id)}
+                    className="p-2 text-gray-400 hover:text-white"
+                    aria-label="Dismiss"
+                  >
+                    <i className="fas fa-times" />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+          {serviceRequests.length > 0 && (
+            <section className="bg-[#111111] rounded-xl border border-[#333333] overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setServiceRequestsExpanded((v) => !v)}
+                className="flex items-center justify-between w-full text-left p-4 group hover:bg-white/[0.03] transition-colors"
+              >
+                <h2 className="text-lg font-bold text-[#F2C200]">My Service Requests</h2>
+                <span className="flex items-center gap-2 text-gray-400 group-hover:text-[#F2C200] transition-colors">
+                  <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">
+                    {serviceRequestsExpanded ? 'Collapse' : 'Expand'}
+                  </span>
+                  <i className={`fas fa-chevron-${serviceRequestsExpanded ? 'up' : 'down'} text-sm`} />
+                </span>
+              </button>
+              {serviceRequestsExpanded && (
+                <div className="grid grid-cols-1 gap-3 px-4 pb-4 pt-4 border-t border-[#333333]/50">
+                  {serviceRequests.map((r) => (
+                    <div
+                      key={r.id}
+                      className="bg-[#111111] p-4 rounded-xl border border-[#333333]"
+                    >
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                      <span className="font-bold text-white">{r.business_name || r.full_name}</span>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          r.status === 'pending'
+                            ? 'bg-[#FFF9E6]/20 text-[#B28900]'
+                            : r.status === 'approved'
+                            ? 'bg-green-900/30 text-green-400'
+                            : 'bg-red-900/30 text-red-400'
+                        }`}
+                      >
+                        {r.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-1">Requested: {r.requested_date}</p>
+                    {r.admin_notes && (
+                      <p className="text-xs text-gray-400 mt-2 italic">Admin notes: {r.admin_notes}</p>
+                    )}
+                    {r.status === 'rejected' && (
+                      <button
+                        onClick={() => startAmend(r)}
+                        className="mt-3 px-4 py-2 rounded-lg bg-[#F2C200] text-black font-bold text-sm hover:brightness-110"
+                      >
+                        Amend & Resubmit
+                      </button>
+                    )}
+                  </div>
+                ))}
+                </div>
+              )}
+            </section>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-[#111111] p-5 rounded-xl border border-[#333333] shadow-sm">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-4" style={{ backgroundColor: '#1A1A1A', border: '1px solid #F2C20033' }}>
@@ -266,19 +455,145 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
             </div>
           </section>
 
-          <section className="bg-[#111111] border border-[#333333] p-6 rounded-2xl text-white">
-            <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
-              <div>
-                <h3 className="text-xl font-bold text-[#F2C200]">Equipment Issues?</h3>
-                <p className="text-gray-400 text-sm">Upload photos of your cooker or extraction hood for remote diagnostic.</p>
+          <section ref={requestFormRef} className="bg-[#111111] border border-[#333333] p-6 rounded-2xl text-white">
+            <h3 className="text-xl font-bold text-[#F2C200] mb-4">Request a Service</h3>
+            <p className="text-gray-400 text-sm mb-6">
+              Fill in the details below and our team will be in touch to arrange your service.
+            </p>
+            <form
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setServiceErrorMessage(null);
+                setServiceSuccessMessage(null);
+                if (!serviceRequest.fullName || !serviceRequest.contactEmail || !serviceRequestDate) {
+                  setServiceErrorMessage('Please fill in your name, contact email and preferred service date.');
+                  return;
+                }
+                try {
+                  setServiceSubmitting(true);
+                  await createServiceRequest({
+                    fullName: serviceRequest.fullName,
+                    siteName: serviceRequest.siteName,
+                    businessAddress: serviceRequest.businessAddress,
+                    postcode: serviceRequest.postcode,
+                    contactName: serviceRequest.contactName,
+                    contactEmail: serviceRequest.contactEmail,
+                    notes: serviceRequest.notes,
+                    requestedDate: serviceRequestDate,
+                  });
+                  resetServiceRequestForm();
+                  setServiceSuccessMessage('Your service request has been submitted. We will be in touch shortly.');
+                } catch (err: any) {
+                  setServiceErrorMessage(err?.message || 'Something went wrong submitting your request.');
+                } finally {
+                  setServiceSubmitting(false);
+                }
+              }}
+            >
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={serviceRequest.fullName}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, fullName: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  placeholder="Enter your full name"
+                />
               </div>
-              <button 
-                className="px-6 py-3 rounded-xl font-bold flex items-center space-x-2 transition-all bg-[#F2C200] text-black hover:brightness-110"
-              >
-                <i className="fas fa-camera"></i>
-                <span>Upload Photo/Video</span>
-              </button>
-            </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Site Name</label>
+                <input
+                  type="text"
+                  value={serviceRequest.siteName}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, siteName: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  placeholder="Enter site name"
+                />
+              </div>
+              <div className="flex flex-col md:col-span-2">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Business Address</label>
+                <input
+                  type="text"
+                  value={serviceRequest.businessAddress}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, businessAddress: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  placeholder="Enter the service address"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Postcode</label>
+                <input
+                  type="text"
+                  value={serviceRequest.postcode}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, postcode: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  placeholder="Enter postcode"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Contact Name</label>
+                <input
+                  type="text"
+                  value={serviceRequest.contactName}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, contactName: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  placeholder="Site contact name"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Contact Email</label>
+                <input
+                  type="email"
+                  value={serviceRequest.contactEmail}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, contactEmail: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  placeholder="Site contact email"
+                  required
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Preferred Service Date</label>
+                <DatePicker
+                  selected={serviceRequestDate ? new Date(serviceRequestDate) : null}
+                  onChange={(date) => setServiceRequestDate(date ? date.toISOString().split('T')[0] : '')}
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Select date, month and year"
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  calendarClassName="react-datepicker-dark"
+                  showMonthDropdown
+                  showYearDropdown
+                  dropdownMode="select"
+                  minDate={new Date()}
+                  required
+                />
+              </div>
+              <div className="flex flex-col md:col-span-2">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Notes</label>
+                <textarea
+                  rows={4}
+                  value={serviceRequest.notes}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, notes: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200] resize-none"
+                  placeholder="Add details of your appliance here and any notes I.E extraction hood, cooker etc."
+                />
+              </div>
+              <div className="md:col-span-2 flex flex-col items-end gap-2 pt-2">
+                {serviceErrorMessage && (
+                  <p className="text-xs text-red-400 self-start">{serviceErrorMessage}</p>
+                )}
+                {serviceSuccessMessage && (
+                  <p className="text-xs text-green-400 self-start">{serviceSuccessMessage}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={serviceSubmitting}
+                  className="px-6 py-3 rounded-2xl font-black uppercase tracking-widest bg-[#F2C200] text-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[#F2C2001A] disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {serviceSubmitting ? 'Submitting...' : 'Submit Request'}
+                </button>
+              </div>
+            </form>
           </section>
         </>
       )}

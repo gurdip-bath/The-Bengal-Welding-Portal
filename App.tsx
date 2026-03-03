@@ -15,8 +15,10 @@ import AdminSurveyForm from './views/AdminSurveyForm';
 import AdminTR19ReportForm from './views/TR19ReportForm';
 import AdminReportLog from './views/AdminReportLog';
 import AdminQuotes from './views/AdminQuotes';
+import AdminServiceRequests from './views/AdminServiceRequests';
 import AdminEmployees from './views/AdminEmployees';
 import ProductsCatalog from './views/ProductsCatalog';
+import GoCardlessCallback from './views/GoCardlessCallback';
 import Login from './views/Login';
 import SignUp from './views/SignUp';
 import JobDetails from './views/JobDetails';
@@ -92,7 +94,7 @@ const App: React.FC = () => {
   };
 
   const handleCustomerPayQuote = (quoteId: string) => {
-    window.open('https://www.paypal.com/checkoutnow', '_blank');
+    window.open('https://www.paypal.com/paypalme/bengalwelding', '_blank');
     const updatedQuotes = quotes.map(q =>
       q.id === quoteId ? { ...q, status: 'PENDING_PAYMENT' as const } : q
     );
@@ -118,6 +120,7 @@ const App: React.FC = () => {
                 {user.role === 'ADMIN' ? (
                   <Route path="/dashboard" element={<AdminWrapper user={user} quotes={quotes} onUpdateQuote={handleAdminUpdateQuote} onLogout={handleLogout} />}>
                     <Route index element={<AdminDashboardHome />} />
+                    <Route path="service-requests" element={<AdminServiceRequests />} />
                     <Route path="jobs" element={<AdminJobs />} />
                     <Route path="sites" element={<AdminSites />} />
                     <Route path="certificates" element={<AdminCertificates />} />
@@ -132,6 +135,7 @@ const App: React.FC = () => {
                   <Route path="/dashboard" element={<CustomerDashboard user={user} quotes={quotes} onPayQuote={handleCustomerPayQuote} />} />
                 )}
                 <Route path="/products" element={<ProductsCatalog onRequestQuote={handleRequestQuote} user={user} />} />
+                <Route path="/gocardless/callback" element={<GoCardlessCallback />} />
                 <Route path="/jobs/:id" element={<JobDetails role={user.role} />} />
                 <Route path="*" element={<Navigate to="/dashboard" />} />
               </>

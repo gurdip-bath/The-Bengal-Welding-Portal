@@ -1,5 +1,15 @@
-
-// Removed the problematic vite/client reference to fix "Cannot find type definition file" error
+// Vite env types (avoids vite/client reference which can conflict with tsconfig types)
+declare global {
+  interface ImportMetaEnv {
+    readonly VITE_SUPABASE_URL?: string;
+    readonly VITE_SUPABASE_ANON_KEY?: string;
+    [key: string]: string | undefined;
+  }
+  interface ImportMeta {
+    readonly env: ImportMetaEnv;
+  }
+}
+export {}
 
 // Declare image modules so TypeScript recognizes them
 declare module '*.png' {

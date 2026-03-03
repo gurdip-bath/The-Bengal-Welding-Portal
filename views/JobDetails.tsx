@@ -359,7 +359,7 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                 {job.paymentStatus !== 'PAID' ? (
                   role !== 'ADMIN' && (
                     <button 
-                      onClick={() => window.open('https://paypal.com', '_blank')} 
+                      onClick={() => window.open('https://www.paypal.com/paypalme/bengalwelding', '_blank')} 
                       className="bg-[#0070ba] text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center space-x-3 hover:brightness-110 shadow-xl shadow-[#0070ba33] transition-all active:scale-95"
                     >
                       <i className="fab fa-paypal text-xl"></i>

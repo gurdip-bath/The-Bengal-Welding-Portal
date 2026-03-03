@@ -3,6 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { User } from '../types';
 import { LOGO, BRAND_NAME } from '../constants';
+import { supabase } from '../lib/supabase';
+import { listServiceRequestsForAdmin } from '../lib/serviceRequests';
+import { useAdmin } from '../contexts/AdminContext';
 
 interface AdminLayoutProps {
   user: User;
@@ -11,6 +14,7 @@ interface AdminLayoutProps {
 
 const SIDEBAR_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'fa-gauge-high' },
+  { path: '/dashboard/service-requests', label: 'Service Requests', icon: 'fa-clipboard-check' },
   { path: '/dashboard/jobs', label: 'Jobs', icon: 'fa-briefcase' },
   { path: '/dashboard/sites', label: 'Sites', icon: 'fa-building' },
   { path: '/dashboard/certificates', label: 'Certificates', icon: 'fa-certificate' },
@@ -21,12 +25,46 @@ const SIDEBAR_ITEMS = [
 ];
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
+  const { quotes } = useAdmin();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pendingQuotesCount = quotes.filter((q) => q.status === 'NEW').length;
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [pendingServiceRequestsCount, setPendingServiceRequestsCount] = useState(0);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    listServiceRequestsForAdmin()
+      .then((reqs) => setPendingServiceRequestsCount(reqs.filter((r) => r.status === 'pending').length))
+      .catch(() => {});
+  }, []);
+
+  const handleSendPasswordReset = async () => {
+    if (!user.email) {
+      setResetError('No email found for this admin account.');
+      return;
+    }
+    setResetError(null);
+    setResetMessage(null);
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/#/login`,
+      });
+      if (error) throw error;
+      setResetMessage('Password reset email sent. Please check your inbox.');
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : 'Failed to send reset email.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const getBreadcrumb = () => {
     const item = SIDEBAR_ITEMS.find((i) => location.pathname === i.path || (i.path !== '/dashboard' && location.pathname.startsWith(i.path)));
@@ -65,6 +103,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {SIDEBAR_ITEMS.map((item) => {
             const isActive = location.pathname === item.path;
+            const showPendingBadge = item.path === '/dashboard/service-requests' && pendingServiceRequestsCount > 0;
+            const showQuotesBadge = item.path === '/dashboard/quotes' && pendingQuotesCount > 0;
             return (
               <Link
                 key={item.path}
@@ -78,6 +118,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
               >
                 <i className={`fas ${item.icon} w-5 text-center`}></i>
                 <span>{item.label}</span>
+                {showPendingBadge && (
+                  <span className="ml-auto min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-black text-[10px] font-black flex items-center justify-center">
+                    {pendingServiceRequestsCount}
+                  </span>
+                )}
+                {showQuotesBadge && (
+                  <span className="ml-auto min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-black text-[10px] font-black flex items-center justify-center">
+                    {pendingQuotesCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -113,11 +163,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
             <p className="text-xs sm:text-sm font-bold text-gray-500 uppercase tracking-widest truncate">{getBreadcrumb()}</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-            <button className="relative p-2 text-gray-500 hover:text-[#F2C200] transition-colors rounded-lg hover:bg-white/5">
-              <i className="fas fa-bell text-lg"></i>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-            <div className="flex items-center gap-3 pl-4 border-l border-[#333333]">
+            <button
+              type="button"
+              onClick={() => setProfileOpen(true)}
+              className="flex items-center gap-3 pl-4 border-l border-[#333333] hover:bg-white/5 rounded-lg transition-colors"
+            >
               <div className="w-10 h-10 rounded-full bg-[#F2C200]/20 flex items-center justify-center text-[#F2C200] font-black text-sm">
                 {user.name.charAt(0)}
               </div>
@@ -125,7 +175,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
                 <p className="text-sm font-bold text-white">{user.name}</p>
                 <p className="text-[10px] font-bold text-[#F2C200] uppercase tracking-wider">Admin</p>
               </div>
-            </div>
+            </button>
           </div>
         </header>
 
@@ -133,6 +183,81 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
         <main className="flex-1 p-4 sm:p-6 overflow-auto w-full max-w-full overflow-x-hidden">
           <Outlet />
         </main>
+        {profileOpen && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-[#111111] border border-[#333333] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[#333333] bg-black/60">
+                <div>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Admin Profile</p>
+                  <h2 className="text-lg font-bold text-white mt-1">{user.name}</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setProfileOpen(false);
+                    setResetError(null);
+                    setResetMessage(null);
+                  }}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <i className="fas fa-times text-xl" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Name</p>
+                    <p className="text-sm font-bold text-white">{user.name}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Email</p>
+                    <p className="text-sm font-bold text-white break-all">{user.email || 'Not set'}</p>
+                  </div>
+                </div>
+
+                <div className="border border-[#333333] rounded-xl p-4 bg-black/40">
+                  <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">
+                    Password
+                  </p>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Send a password reset link to this admin email. They can choose a new password from
+                    the secure Supabase-hosted page.
+                  </p>
+                  {resetMessage && (
+                    <div className="mb-2 text-xs font-bold text-green-400">
+                      <i className="fas fa-check-circle mr-1" />
+                      {resetMessage}
+                    </div>
+                  )}
+                  {resetError && (
+                    <div className="mb-2 text-xs font-bold text-red-400">
+                      <i className="fas fa-exclamation-triangle mr-1" />
+                      {resetError}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSendPasswordReset}
+                    disabled={resetLoading}
+                    className="mt-1 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold bg-[#F2C200] text-black hover:brightness-110 disabled:opacity-60 transition-all"
+                  >
+                    {resetLoading ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin mr-2" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-envelope mr-2" />
+                        Send password reset email
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

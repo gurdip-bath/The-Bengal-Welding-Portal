@@ -82,7 +82,7 @@ export const MOCK_PRODUCTS: Product[] = [
     id: 'p3',
     name: 'Grease Cleaning Service Plan',
     description: 'Professional deep cleaning for commercial extraction systems to ensure fire safety compliance.',
-    price: 499.00,
+    price: 49.00,
     category: 'Services',
     image: 'grease-cleaning-service-plan.png',
   },

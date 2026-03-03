@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => {
         VitePWA({
           registerType: 'autoUpdate',
           includeAssets: ['icon-192.png', 'icon-512.png'],
+          workbox: {
+            maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+          },
           manifest: {
             name: 'Bengal Welding Portal',
             short_name: 'Bengal Welding',

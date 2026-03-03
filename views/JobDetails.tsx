@@ -11,6 +11,11 @@ interface JobDetailsProps {
   role: UserRole;
 }
 
+const DetailRow = ({ label, value }: { label: string; value?: string | null }) =>
+  value != null && value !== '' ? (
+    <p><span className="text-gray-500">{label}:</span> <span className="text-white font-medium">{value}</span></p>
+  ) : null;
+
 const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -26,6 +31,7 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
   const [noteImage, setNoteImage] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [fullDetailsOpen, setFullDetailsOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -136,12 +142,20 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
         
         <div className="flex items-center space-x-3">
           {role === 'ADMIN' && (
-            <button 
-              onClick={() => setIsEditing(true)} 
-              className="text-xs font-bold text-black px-4 py-2 rounded-lg bg-[#F2C200] hover:brightness-110 active:scale-95 transition-all"
-            >
-              <i className="fas fa-edit mr-2"></i> Manage Record
-            </button>
+            <>
+              <button
+                onClick={() => setFullDetailsOpen(true)}
+                className="text-xs font-bold text-white px-4 py-2 rounded-lg bg-[#333333] border border-[#444] hover:bg-[#444] active:scale-95 transition-all"
+              >
+                <i className="fas fa-list-ul mr-2"></i> Full Details
+              </button>
+              <button 
+                onClick={() => setIsEditing(true)} 
+                className="text-xs font-bold text-black px-4 py-2 rounded-lg bg-[#F2C200] hover:brightness-110 active:scale-95 transition-all"
+              >
+                <i className="fas fa-edit mr-2"></i> Manage Record
+              </button>
+            </>
           )}
           <button 
             onClick={() => navigate('/dashboard')}
@@ -457,6 +471,87 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                   Update Service Record
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Details modal (admin only) */}
+      {fullDetailsOpen && role === 'ADMIN' && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={() => setFullDetailsOpen(false)}>
+          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[#333333] p-6 text-white flex justify-between items-center border-b border-[#444]">
+              <h2 className="text-lg font-bold">Full Details — Job {job.id}</h2>
+              <button onClick={() => setFullDetailsOpen(false)} className="text-gray-400 hover:text-white">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+              <section>
+                <h3 className="text-[10px] font-black text-[#F2C200] uppercase tracking-wider mb-3">Job & Site</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <DetailRow label="Title" value={job.title} />
+                  <DetailRow label="Status" value={job.status?.replace('_', ' ')} />
+                  <DetailRow label="Job Type" value={job.jobType} />
+                  <DetailRow label="Job ID" value={job.id} />
+                  <DetailRow label="Certificate #" value={job.certificateNumber} />
+                  <DetailRow label="Frequency" value={job.frequency} />
+                </div>
+                {job.description && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Description</p>
+                    <p className="text-gray-300 text-sm bg-black/40 p-3 rounded-lg border border-[#333]">{job.description}</p>
+                  </div>
+                )}
+              </section>
+              <section>
+                <h3 className="text-[10px] font-black text-[#F2C200] uppercase tracking-wider mb-3">Customer & Site Address</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <DetailRow label="Customer" value={job.customerName} />
+                  <DetailRow label="Contact" value={job.contactName} />
+                  <DetailRow label="Customer ID" value={job.customerId} />
+                  <DetailRow label="Email" value={job.customerEmail} />
+                  <DetailRow label="Phone" value={job.customerPhone} />
+                  <DetailRow label="Postcode" value={job.customerPostcode} />
+                  <div className="sm:col-span-2">
+                    <DetailRow label="Address" value={job.customerAddress} />
+                  </div>
+                </div>
+              </section>
+              <section>
+                <h3 className="text-[10px] font-black text-[#F2C200] uppercase tracking-wider mb-3">Scheduling & Service</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <DetailRow label="Start Date" value={job.startDate ? new Date(job.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null} />
+                  <DetailRow label="Start Time" value={job.startTime} />
+                  <DetailRow label="Duration" value={job.duration ? `${job.duration} hour${job.duration !== 1 ? 's' : ''}` : null} />
+                  <DetailRow label="Lead Operative" value={job.leadOperative} />
+                  <DetailRow label="Technician" value={job.technician} />
+                  <DetailRow label="Warranty End" value={job.warrantyEndDate ? new Date(job.warrantyEndDate).toLocaleDateString('en-GB') : null} />
+                </div>
+              </section>
+              <section>
+                <h3 className="text-[10px] font-black text-[#F2C200] uppercase tracking-wider mb-3">Payment & TR19</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <DetailRow label="Payment Status" value={job.paymentStatus} />
+                  <DetailRow label="Amount" value={job.amount != null ? `£${job.amount.toLocaleString()}` : null} />
+                  <DetailRow label="Grease Rating" value={job.greaseRating} />
+                  <DetailRow label="Duct Length" value={job.ductLength} />
+                  <DetailRow label="TR19 Compliant" value={job.tr19Compliant != null ? (job.tr19Compliant ? 'Yes' : 'No') : null} />
+                </div>
+              </section>
+              {job.notes && job.notes.length > 0 && (
+                <section>
+                  <h3 className="text-[10px] font-black text-[#F2C200] uppercase tracking-wider mb-3">Notes ({job.notes.length})</h3>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {job.notes.map((n) => (
+                      <div key={n.id} className="bg-black/40 p-3 rounded-lg border border-[#333] text-sm">
+                        <p className="text-gray-400 text-[10px] font-bold">{n.author} · {new Date(n.timestamp).toLocaleString()}</p>
+                        <p className="text-gray-300 mt-1">{n.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           </div>
         </div>

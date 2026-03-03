@@ -263,7 +263,7 @@ const AdminJobs: React.FC = () => {
                         to={`/jobs/${job.id}`}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs bg-[#F2C200] text-black hover:brightness-110 transition-all"
                       >
-                        View Job
+                        View Record
                       </Link>
                       <button
                         onClick={() => handleDeleteJob(job.id)}

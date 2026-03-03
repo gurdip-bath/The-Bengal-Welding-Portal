@@ -382,7 +382,7 @@ const AdminDashboardHome: React.FC = () => {
                       to={`/jobs/${site.jobId}`}
                       className="px-4 py-2 rounded-xl font-bold text-xs bg-[#0070ba] text-white hover:brightness-110 transition-all"
                     >
-                      View Job
+                      View Record
                     </Link>
                   ) : (
                     <button
@@ -400,7 +400,7 @@ const AdminDashboardHome: React.FC = () => {
                       }}
                       className="px-4 py-2 rounded-xl font-bold text-xs bg-[#0070ba] text-white hover:brightness-110 transition-all"
                     >
-                      View Job
+                      Schedule
                     </button>
                   )}
                 </div>

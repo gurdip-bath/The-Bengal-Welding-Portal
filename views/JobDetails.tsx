@@ -99,7 +99,7 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
       id: `N-${Date.now()}`,
       text: noteText,
       timestamp: new Date().toISOString(),
-      author: role === 'ADMIN' ? 'Engineer/Staff' : 'Customer',
+      author: (role === 'ADMIN' || role === 'ENGINEER') ? 'Engineer/Staff' : 'Customer',
       images: noteImage ? [noteImage] : []
     };
     
@@ -141,7 +141,7 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
         </div>
         
         <div className="flex items-center space-x-3">
-          {role === 'ADMIN' && (
+          {(role === 'ADMIN' || role === 'ENGINEER') && (
             <>
               <button
                 onClick={() => setFullDetailsOpen(true)}
@@ -371,7 +371,7 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                   <p className="text-sm text-gray-400 font-bold">Total Contract Value: <span className="text-white">£{job.amount.toLocaleString()}</span></p>
                 </div>
                 {job.paymentStatus !== 'PAID' ? (
-                  role !== 'ADMIN' && (
+                  role !== 'ADMIN' && role !== 'ENGINEER' && (
                     <button 
                       onClick={() => window.open('https://www.paypal.com/paypalme/bengalwelding', '_blank')} 
                       className="bg-[#0070ba] text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center space-x-3 hover:brightness-110 shadow-xl shadow-[#0070ba33] transition-all active:scale-95"
@@ -477,7 +477,7 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
       )}
 
       {/* Full Details modal (admin only) */}
-      {fullDetailsOpen && role === 'ADMIN' && (
+      {fullDetailsOpen && (role === 'ADMIN' || role === 'ENGINEER') && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={() => setFullDetailsOpen(false)}>
           <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="bg-[#333333] p-6 text-white flex justify-between items-center border-b border-[#444]">

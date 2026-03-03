@@ -3,12 +3,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
+    return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -29,8 +30,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseAuth = createClient(supabaseUrl, authHeader.replace("Bearer ", ""), { auth: { persistSession: false } });
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    const token = authHeader.replace("Bearer ", "").trim();
+    const admin = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
+    const { data: { user }, error: userError } = await admin.auth.getUser(token);
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
@@ -38,8 +40,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    const role = user.user_metadata?.role;
-    if (role !== "ADMIN") {
+    // Check admin: user_metadata.role or profiles.role (ADMIN or ENGINEER have admin access)
+    let isAdmin = user.user_metadata?.role === "ADMIN" || user.user_metadata?.role === "ENGINEER";
+    if (!isAdmin) {
+      const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      const pr = (profile?.role as string)?.toLowerCase();
+      isAdmin = pr === "admin" || pr === "engineer";
+    }
+    if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Admin only" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -47,7 +55,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { name, email, password, grant_admin_access } = body;
+    const { name, email, password, role: requestedRole } = body;
     if (!name || !email || !password) {
       return new Response(JSON.stringify({ error: "Missing name, email, or password" }), {
         status: 400,
@@ -55,9 +63,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const employeeRole = grant_admin_access === true ? "ADMIN" : "CUSTOMER";
+    const employeeRole = (requestedRole === "ENGINEER" || requestedRole === "ADMIN") ? requestedRole : "CUSTOMER";
 
-    const admin = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
     const { data: newUser, error } = await admin.auth.admin.createUser({
       email: email.trim().toLowerCase(),
       password,
@@ -71,6 +78,13 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Upsert profile so RLS policies recognize the new user's role (store lowercase)
+    const profileRole = (employeeRole as string).toLowerCase();
+    await admin.from("profiles").upsert(
+      { id: newUser.user.id, role: profileRole },
+      { onConflict: "id" }
+    );
 
     return new Response(
       JSON.stringify({

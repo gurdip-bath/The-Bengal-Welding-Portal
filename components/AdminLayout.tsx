@@ -173,7 +173,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
               </div>
               <div className="hidden sm:block text-right min-w-0">
                 <p className="text-sm font-bold text-white">{user.name}</p>
-                <p className="text-[10px] font-bold text-[#F2C200] uppercase tracking-wider">Admin</p>
+                <p className="text-[10px] font-bold text-[#F2C200] uppercase tracking-wider">{user.role === 'ENGINEER' ? 'Engineer' : user.role === 'ADMIN' ? 'Admin' : user.role}</p>
               </div>
             </button>
           </div>

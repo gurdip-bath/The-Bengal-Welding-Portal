@@ -61,9 +61,10 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
   const [priceInput, setPriceInput] = useState('');
   const [notesInput, setNotesInput] = useState('');
   const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
-  const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', password: '', grantAdminAccess: false });
+  const [employeeForm, setEmployeeForm] = useState<{ name: string; email: string; password: string; role: 'ENGINEER' | 'ADMIN' }>({ name: '', email: '', password: '', role: 'ENGINEER' });
   const [employeeError, setEmployeeError] = useState('');
-  const [employeeSuccess, setEmployeeSuccess] = useState<boolean | { hadAdminAccess: boolean }>(false);
+  const [employeeSuccess, setEmployeeSuccess] = useState<boolean | { role: 'ENGINEER' | 'ADMIN' }>(false);
+  const [employeeLoading, setEmployeeLoading] = useState(false);
   const [warrantyStartDate, setWarrantyStartDate] = useState('');
   const [warrantyEndDate, setWarrantyEndDate] = useState('');
   const [viewMode, setViewMode] = useState<'LIST' | 'CALENDAR'>('LIST');
@@ -275,26 +276,33 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
       setEmployeeError('Password must be at least 6 characters.');
       return;
     }
-    const result = await registerEmployee({
-      name: employeeForm.name.trim(),
-      email: employeeForm.email.trim(),
-      password: employeeForm.password,
-      grantAdminAccess: employeeForm.grantAdminAccess,
-    });
-    if (result.success) {
-      setEmployeeSuccess({ hadAdminAccess: employeeForm.grantAdminAccess });
-      setEmployeeForm({ name: '', email: '', password: '', grantAdminAccess: false });
-      setTimeout(() => {
-        setIsAddEmployeeModalOpen(false);
-        setEmployeeSuccess(false);
-      }, 1500);
-    } else {
-      setEmployeeError(result.error || 'Failed to create employee.');
+    setEmployeeLoading(true);
+    try {
+      const result = await registerEmployee({
+        name: employeeForm.name.trim(),
+        email: employeeForm.email.trim(),
+        password: employeeForm.password,
+        role: employeeForm.role,
+      });
+      if (result.success) {
+        setEmployeeSuccess({ role: employeeForm.role });
+        setEmployeeForm({ name: '', email: '', password: '', role: 'ENGINEER' });
+        setTimeout(() => {
+          setIsAddEmployeeModalOpen(false);
+          setEmployeeSuccess(false);
+        }, 1500);
+      } else {
+        setEmployeeError(result.error || 'Failed to create employee.');
+      }
+    } catch (err) {
+      setEmployeeError(err instanceof Error ? err.message : 'Failed to create employee. Please try again.');
+    } finally {
+      setEmployeeLoading(false);
     }
   };
 
   const openAddEmployeeModal = () => {
-    setEmployeeForm({ name: '', email: '', password: '', grantAdminAccess: false });
+    setEmployeeForm({ name: '', email: '', password: '', role: 'ENGINEER' });
     setEmployeeError('');
     setEmployeeSuccess(false);
     setIsAddEmployeeModalOpen(true);
@@ -400,6 +408,7 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
             setForm={setEmployeeForm}
             error={employeeError}
             success={employeeSuccess}
+            loading={employeeLoading}
             onSave={handleAddEmployee}
             onClose={() => setIsAddEmployeeModalOpen(false)}
           />
@@ -854,7 +863,7 @@ function JobModal({
   );
 }
 
-function EmployeeModal({ form, setForm, error, success, onSave, onClose }: any) {
+function EmployeeModal({ form, setForm, error, success, loading, onSave, onClose }: any) {
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[250] flex items-center justify-center p-4">
       <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
@@ -872,7 +881,7 @@ function EmployeeModal({ form, setForm, error, success, onSave, onClose }: any) 
           )}
           {success && (
             <div className="p-3 rounded-xl bg-green-900/30 border border-green-800/50 text-green-400 text-sm font-medium">
-              Employee account created. {typeof success === 'object' && success.hadAdminAccess ? 'They can sign in with admin view access.' : 'They will see the customer dashboard until you grant admin access.'}
+              Employee account created. They can sign in with admin view as {typeof success === 'object' && success.role ? success.role.toLowerCase() : 'admin'}.
             </div>
           )}
           <div>
@@ -905,17 +914,32 @@ function EmployeeModal({ form, setForm, error, success, onSave, onClose }: any) 
               className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
             />
           </div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.grantAdminAccess ?? false}
-              onChange={(e) => setForm({ ...form, grantAdminAccess: e.target.checked })}
-              className="w-5 h-5 rounded border border-[#333333] bg-black text-[#F2C200] focus:ring-[#F2C200]"
-            />
-            <span className="text-sm font-bold text-gray-300">Grant admin view access</span>
-          </label>
-          <button onClick={onSave} className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A] hover:brightness-110">
-            Create Employee Account
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Role</label>
+            <select
+              value={form.role ?? 'ENGINEER'}
+              onChange={(e) => setForm({ ...form, role: e.target.value as 'ENGINEER' | 'ADMIN' })}
+              className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
+            >
+              <option value="ENGINEER">Engineer</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+            <p className="text-[10px] text-gray-500 mt-1">Both have admin view access; title shows in top right.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={loading}
+            className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#F2C2001A] hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <i className="fas fa-spinner fa-spin mr-2"></i>
+                Creating...
+              </>
+            ) : (
+              'Create Employee Account'
+            )}
           </button>
         </div>
       </div>

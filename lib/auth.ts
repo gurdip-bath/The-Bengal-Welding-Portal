@@ -28,7 +28,9 @@ function getCachedRole(userId: string): UserRole | null {
     const raw = localStorage.getItem(`${CACHED_ROLE_KEY}_${userId}`);
     if (!raw) return null;
     const r = raw.toUpperCase();
-    return r === 'ADMIN' ? 'ADMIN' : 'CUSTOMER';
+    if (r === 'ADMIN') return 'ADMIN';
+    if (r === 'ENGINEER') return 'ENGINEER';
+    return 'CUSTOMER';
   } catch {
     return null;
   }
@@ -49,14 +51,14 @@ async function fetchProfileRole(userId: string, fallbackFromMetadata?: UserRole)
       const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
       if (error) throw new Error('profile fetch failed');
       const r = (data?.role as string)?.toLowerCase();
-      const role: UserRole = r === 'admin' ? 'ADMIN' : 'CUSTOMER';
+      const role: UserRole = r === 'admin' ? 'ADMIN' : r === 'engineer' ? 'ENGINEER' : 'CUSTOMER';
       setCachedRole(userId, role);
       return role;
     };
     return await Promise.race([fetchRole(), timeout(8000)]);
   } catch {
     // Offline / timeout: use user_metadata.role, then cached role, then CUSTOMER
-    if (fallbackFromMetadata === 'ADMIN' || fallbackFromMetadata === 'CUSTOMER') {
+    if (fallbackFromMetadata === 'ADMIN' || fallbackFromMetadata === 'ENGINEER' || fallbackFromMetadata === 'CUSTOMER') {
       setCachedRole(userId, fallbackFromMetadata);
       return fallbackFromMetadata;
     }
@@ -71,7 +73,9 @@ async function mapAuthUserToAppUserWithProfile(raw: { id: string; email?: string
   if (!base) return null;
   const metaRole = raw.user_metadata?.role as string | undefined;
   const fallback: UserRole | undefined =
-    metaRole?.toUpperCase() === 'ADMIN' ? 'ADMIN' : metaRole?.toUpperCase() === 'CUSTOMER' ? 'CUSTOMER' : undefined;
+    metaRole?.toUpperCase() === 'ADMIN' ? 'ADMIN'
+    : metaRole?.toUpperCase() === 'ENGINEER' ? 'ENGINEER'
+    : metaRole?.toUpperCase() === 'CUSTOMER' ? 'CUSTOMER' : undefined;
   const role = await fetchProfileRole(raw.id, fallback);
   return { ...base, role };
 }
@@ -136,8 +140,12 @@ export async function getAllUsers(): Promise<StoredUser[]> {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as unknown as string;
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) return [];
+  const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
   const res = await fetch(`${SUPABASE_URL}/functions/v1/list-users`, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
+    headers: {
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${session.access_token}`,
+    },
   });
   if (!res.ok) return [];
   const json = await res.json().catch(() => ({}));
@@ -156,22 +164,24 @@ export async function registerEmployee(data: {
   name: string;
   email: string;
   password: string;
-  grantAdminAccess?: boolean;
+  role: 'ENGINEER' | 'ADMIN';
 }): Promise<{ success: boolean; user?: User; error?: string }> {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) return { success: false, error: 'Not authenticated' };
   const res = await fetch(`${SUPABASE_URL}/functions/v1/create-employee`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      apikey: ANON_KEY,
       Authorization: `Bearer ${session.access_token}`,
     },
     body: JSON.stringify({
       name: data.name.trim(),
       email: data.email.trim().toLowerCase(),
       password: data.password,
-      grant_admin_access: data.grantAdminAccess === true,
+      role: data.role,
     }),
   });
   const json = await res.json().catch(() => ({}));

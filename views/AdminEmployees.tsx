@@ -8,7 +8,7 @@ const AdminEmployees: React.FC = () => {
   const [employees, setEmployees] = useState<StoredUser[]>([]);
 
   useEffect(() => {
-    getAllUsers().then((users) => setEmployees(users.filter((u) => u.role === 'ADMIN')));
+    getAllUsers().then((users) => setEmployees(users.filter((u) => u.role === 'ADMIN' || u.role === 'ENGINEER')));
   }, []);
   const matchesSearch = (text?: string) =>
     !searchQuery || (text || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -61,7 +61,7 @@ const AdminEmployees: React.FC = () => {
                 <td className="px-6 py-4 text-gray-300">{emp.email}</td>
                 <td className="px-6 py-4">
                   <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#F2C200]/20 text-[#F2C200] text-[10px] font-black uppercase tracking-widest">
-                    Admin
+                    {emp.role === 'ENGINEER' ? 'Engineer' : emp.role === 'ADMIN' ? 'Admin' : emp.role}
                   </span>
                 </td>
               </tr>

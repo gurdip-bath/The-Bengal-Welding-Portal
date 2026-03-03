@@ -1,0 +1,8 @@
+# Disable gateway JWT verification for admin Edge Functions.
+# These functions validate the JWT manually with admin.auth.getUser(token)
+# and check admin role, so security is preserved.
+[functions.create-employee]
+verify_jwt = false
+
+[functions.list-users]
+verify_jwt = false

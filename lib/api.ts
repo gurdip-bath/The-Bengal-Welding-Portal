@@ -7,6 +7,7 @@
 import { supabase } from './supabase';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const CREATE_FLOW_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/create-checkout-session` : '';
 const FINALIZE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/finalize-grease-plan` : '';
 
@@ -24,6 +25,7 @@ export async function createGreasePlanCheckoutSession(customerEmail?: string): P
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      apikey: ANON_KEY,
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ customerEmail: customerEmail || undefined }),
@@ -46,6 +48,7 @@ export async function finalizeGreasePlanSubscription(billingRequestId: string): 
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      apikey: ANON_KEY,
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ billing_request_id: billingRequestId }),

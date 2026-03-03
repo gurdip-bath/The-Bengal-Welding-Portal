@@ -3,12 +3,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
+    return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -29,8 +30,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseAuth = createClient(supabaseUrl, authHeader.replace("Bearer ", ""), { auth: { persistSession: false } });
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    const token = authHeader.replace("Bearer ", "").trim();
+    const admin = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
+    const { data: { user }, error: userError } = await admin.auth.getUser(token);
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
@@ -38,15 +40,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const role = user.user_metadata?.role;
-    if (role !== "ADMIN") {
+    // Check admin: user_metadata.role or profiles.role (ADMIN or ENGINEER have admin access)
+    let isAdmin = user.user_metadata?.role === "ADMIN" || user.user_metadata?.role === "ENGINEER";
+    if (!isAdmin) {
+      const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      const pr = (profile?.role as string)?.toLowerCase();
+      isAdmin = pr === "admin" || pr === "engineer";
+    }
+    if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Admin only" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const admin = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
     const { data: { users }, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {

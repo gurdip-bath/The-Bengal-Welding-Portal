@@ -105,9 +105,9 @@ const App: React.FC = () => {
   return (
     <Router>
       <div className="min-h-screen bg-black flex flex-col pb-20 md:pb-0 overflow-x-hidden w-full max-w-[100vw]">
-        {user && user.role !== 'ADMIN' && <Navbar user={user} onLogout={handleLogout} />}
+        {user && user.role !== 'ADMIN' && user.role !== 'ENGINEER' && <Navbar user={user} onLogout={handleLogout} />}
         
-        <main className={`flex-grow w-full max-w-full overflow-x-hidden ${user?.role === 'ADMIN' ? '' : 'container mx-auto px-4 py-6'}`}>
+        <main className={`flex-grow w-full max-w-full overflow-x-hidden ${user?.role === 'ADMIN' || user?.role === 'ENGINEER' ? '' : 'container mx-auto px-4 py-6'}`}>
           <Routes>
             {!user ? (
               <>
@@ -117,7 +117,7 @@ const App: React.FC = () => {
               </>
             ) : (
               <>
-                {user.role === 'ADMIN' ? (
+                {(user.role === 'ADMIN' || user.role === 'ENGINEER') ? (
                   <Route path="/dashboard" element={<AdminWrapper user={user} quotes={quotes} onUpdateQuote={handleAdminUpdateQuote} onLogout={handleLogout} />}>
                     <Route index element={<AdminDashboardHome />} />
                     <Route path="service-requests" element={<AdminServiceRequests />} />
@@ -144,7 +144,7 @@ const App: React.FC = () => {
         </main>
 
         {user && <AIAssistant />}
-        <AddToHomeScreenPrompt aboveBottomNav={!!user && user.role !== 'ADMIN'} />
+        <AddToHomeScreenPrompt aboveBottomNav={!!user && user.role !== 'ADMIN' && user.role !== 'ENGINEER'} />
       </div>
     </Router>
   );

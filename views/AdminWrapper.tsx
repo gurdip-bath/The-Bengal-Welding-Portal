@@ -179,6 +179,11 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
       customerPostcode: '',
       contactName: '',
       frequency: 'Every 12 months',
+      accessDifficulty: undefined,
+      applianceLocation: '',
+      accessInstructions: '',
+      equipmentRequired: '',
+      ppeRequired: '',
     });
     setIsJobModalOpen(true);
   };
@@ -209,6 +214,10 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
     }
     if (!jobForm.customerPostcode) {
       alert('Please enter a Postcode.');
+      return;
+    }
+    if (!jobForm.accessDifficulty || !jobForm.applianceLocation?.trim() || !jobForm.accessInstructions?.trim() || !jobForm.equipmentRequired?.trim() || !jobForm.ppeRequired?.trim()) {
+      alert('Please complete all Engineer Access fields (Access Difficulty, Appliance Location, Access Instructions, Equipment Required, PPE Required).');
       return;
     }
     const finalCustomerId = jobForm.customerId || `SITE-${Math.floor(Math.random() * 9000) + 1000}`;
@@ -840,6 +849,63 @@ function JobModal({
               onChange={(e) => setJobForm({ ...jobForm, description: e.target.value })}
               placeholder="Additional notes..."
               className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none"
+            />
+          </div>
+          <div className="pt-4 border-t border-[#333333]">
+            <h4 className="text-xs font-bold text-[#F2C200] uppercase mb-3">Engineer Access</h4>
+            <p className="text-[10px] text-gray-500 mb-3">Help engineers prepare by providing site access details.</p>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Access Difficulty *</label>
+            <select
+              value={jobForm.accessDifficulty || ''}
+              onChange={(e) => setJobForm({ ...jobForm, accessDifficulty: e.target.value as 'easy' | 'medium' | 'difficult' })}
+              className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none appearance-none pr-10"
+            >
+              <option value="">Select...</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="difficult">Difficult</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Appliance Location *</label>
+            <input
+              type="text"
+              value={jobForm.applianceLocation || ''}
+              onChange={(e) => setJobForm({ ...jobForm, applianceLocation: e.target.value })}
+              placeholder="e.g. Main kitchen, rear"
+              className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Access Instructions *</label>
+            <textarea
+              rows={2}
+              value={jobForm.accessInstructions || ''}
+              onChange={(e) => setJobForm({ ...jobForm, accessInstructions: e.target.value })}
+              placeholder="How to access the site / appliance"
+              className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Equipment Required *</label>
+            <input
+              type="text"
+              value={jobForm.equipmentRequired || ''}
+              onChange={(e) => setJobForm({ ...jobForm, equipmentRequired: e.target.value })}
+              placeholder="e.g. Ladder, scaffolding"
+              className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">PPE Required *</label>
+            <input
+              type="text"
+              value={jobForm.ppeRequired || ''}
+              onChange={(e) => setJobForm({ ...jobForm, ppeRequired: e.target.value })}
+              placeholder="e.g. Gloves, safety glasses"
+              className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
             />
           </div>
           <div className="flex gap-4 pt-4 border-t border-[#333333]">

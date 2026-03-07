@@ -22,6 +22,11 @@ export interface ServiceRequestRow {
   approved_at: string | null;
   rejected_at: string | null;
   created_at: string;
+  access_difficulty?: string | null;
+  appliance_location?: string | null;
+  access_instructions?: string | null;
+  equipment_required?: string | null;
+  ppe_required?: string | null;
 }
 
 export async function listServiceRequestsForAdmin(): Promise<ServiceRequestRow[]> {

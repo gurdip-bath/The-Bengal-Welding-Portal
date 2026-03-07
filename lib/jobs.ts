@@ -27,6 +27,11 @@ function rowToJob(r: Record<string, unknown>): Job {
     duration: (r.duration as number) || undefined,
     jobType: (r.job_type as string) || undefined,
     leadOperative: (r.lead_operative as string) || undefined,
+    accessDifficulty: (r.access_difficulty as Job['accessDifficulty']) || undefined,
+    applianceLocation: (r.appliance_location as string) || undefined,
+    accessInstructions: (r.access_instructions as string) || undefined,
+    equipmentRequired: (r.equipment_required as string) || undefined,
+    ppeRequired: (r.ppe_required as string) || undefined,
   };
 }
 
@@ -63,6 +68,11 @@ export async function createJobFromServiceRequest(
     contact_email: string;
     notes: string | null;
     requested_date: string;
+    access_difficulty: string | null;
+    appliance_location: string | null;
+    access_instructions: string | null;
+    equipment_required: string | null;
+    ppe_required: string | null;
   }
 ): Promise<Job> {
   const jobId = `J-${Math.floor(Math.random() * 10000)}`;
@@ -91,6 +101,11 @@ export async function createJobFromServiceRequest(
     job_type: null,
     lead_operative: null,
     service_request_id: request.id,
+    access_difficulty: request.access_difficulty || null,
+    appliance_location: request.appliance_location || null,
+    access_instructions: request.access_instructions || null,
+    equipment_required: request.equipment_required || null,
+    ppe_required: request.ppe_required || null,
   };
 
   const { data, error } = await supabase

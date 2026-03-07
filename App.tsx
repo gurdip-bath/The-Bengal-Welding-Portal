@@ -19,6 +19,7 @@ import AdminServiceRequests from './views/AdminServiceRequests';
 import AdminEmployees from './views/AdminEmployees';
 import ProductsCatalog from './views/ProductsCatalog';
 import GoCardlessCallback from './views/GoCardlessCallback';
+import GoCardlessServiceRequestCallback from './views/GoCardlessServiceRequestCallback';
 import Login from './views/Login';
 import SignUp from './views/SignUp';
 import JobDetails from './views/JobDetails';
@@ -136,6 +137,7 @@ const App: React.FC = () => {
                 )}
                 <Route path="/products" element={<ProductsCatalog onRequestQuote={handleRequestQuote} user={user} />} />
                 <Route path="/gocardless/callback" element={<GoCardlessCallback />} />
+                <Route path="/gocardless/service-request/callback" element={<GoCardlessServiceRequestCallback />} />
                 <Route path="/jobs/:id" element={<JobDetails role={user.role} />} />
                 <Route path="*" element={<Navigate to="/dashboard" />} />
               </>

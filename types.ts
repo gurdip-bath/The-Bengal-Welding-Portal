@@ -48,6 +48,11 @@ export interface Job {
   duration?: number;
   jobType?: string;
   leadOperative?: string;
+  accessDifficulty?: 'easy' | 'medium' | 'difficult';
+  applianceLocation?: string;
+  accessInstructions?: string;
+  equipmentRequired?: string;
+  ppeRequired?: string;
 }
 
 export interface QuoteRequest {

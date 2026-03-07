@@ -463,6 +463,65 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                   />
                 </div>
               </div>
+              <div className="pt-4 border-t border-[#333333]">
+                <h4 className="text-xs font-bold text-[#F2C200] uppercase mb-3">Engineer Access</h4>
+                <p className="text-[10px] text-gray-500 mb-3">Optional for older records.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Access Difficulty</label>
+                  <select
+                    value={editForm.accessDifficulty || ''}
+                    onChange={(e) => setEditForm({ ...editForm, accessDifficulty: e.target.value ? (e.target.value as 'easy' | 'medium' | 'difficult') : undefined })}
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl"
+                  >
+                    <option value="">—</option>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="difficult">Difficult</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Appliance Location</label>
+                  <input
+                    type="text"
+                    value={editForm.applianceLocation || ''}
+                    onChange={(e) => setEditForm({ ...editForm, applianceLocation: e.target.value })}
+                    placeholder="e.g. Main kitchen"
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Access Instructions</label>
+                  <textarea
+                    rows={2}
+                    value={editForm.accessInstructions || ''}
+                    onChange={(e) => setEditForm({ ...editForm, accessInstructions: e.target.value })}
+                    placeholder="How to access the site"
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Equipment Required</label>
+                  <input
+                    type="text"
+                    value={editForm.equipmentRequired || ''}
+                    onChange={(e) => setEditForm({ ...editForm, equipmentRequired: e.target.value })}
+                    placeholder="e.g. Ladder"
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">PPE Required</label>
+                  <input
+                    type="text"
+                    value={editForm.ppeRequired || ''}
+                    onChange={(e) => setEditForm({ ...editForm, ppeRequired: e.target.value })}
+                    placeholder="e.g. Gloves, safety glasses"
+                    className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl"
+                  />
+                </div>
+              </div>
               <div className="pt-6 border-t border-[#333333]">
                 <button 
                   onClick={handleUpdateJobRecord} 
@@ -527,6 +586,18 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                   <DetailRow label="Lead Operative" value={job.leadOperative} />
                   <DetailRow label="Technician" value={job.technician} />
                   <DetailRow label="Warranty End" value={job.warrantyEndDate ? new Date(job.warrantyEndDate).toLocaleDateString('en-GB') : null} />
+                </div>
+              </section>
+              <section>
+                <h3 className="text-[10px] font-black text-[#F2C200] uppercase tracking-wider mb-3">Engineer Access</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <DetailRow label="Access Difficulty" value={job.accessDifficulty || '—'} />
+                  <DetailRow label="Appliance Location" value={job.applianceLocation || '—'} />
+                  <div className="sm:col-span-2">
+                    <DetailRow label="Access Instructions" value={job.accessInstructions || '—'} />
+                  </div>
+                  <DetailRow label="Equipment Required" value={job.equipmentRequired || '—'} />
+                  <DetailRow label="PPE Required" value={job.ppeRequired || '—'} />
                 </div>
               </section>
               <section>

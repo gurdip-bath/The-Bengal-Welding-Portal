@@ -10,6 +10,8 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const CREATE_FLOW_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/create-checkout-session` : '';
 const FINALIZE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/finalize-grease-plan` : '';
+const SERVICE_REQUEST_CHECKOUT_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/create-service-request-checkout` : '';
+const FINALIZE_SERVICE_REQUEST_PAYMENT_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/finalize-service-request-payment` : '';
 
 async function getAccessToken(): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -58,6 +60,56 @@ export async function finalizeGreasePlanSubscription(billingRequestId: string): 
   return data;
 }
 
+export async function hasServiceRequestPayment(): Promise<boolean> {
+  const { data } = await supabase
+    .from('service_request_payments')
+    .select('status')
+    .limit(1)
+    .maybeSingle();
+  return data?.status === 'paid';
+}
+
+export async function createServiceRequestCheckout(): Promise<{ url: string; amount_pence: number }> {
+  await supabase.auth.refreshSession();
+  const token = await getAccessToken();
+  const res = await fetch(SERVICE_REQUEST_CHECKOUT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ access_token: token }),
+  });
+  const data = await res.json().catch(() => ({}));
+  // #region agent log
+  if (!res.ok) {
+    console.error('[DEBUG] create-service-request-checkout:', { status: res.status, error: data?.error, gocardless_errors: data?.gocardless_errors, body: data });
+    fetch('http://127.0.0.1:7942/ingest/994fc98a-dbdd-4f05-82e2-3a64c140afa9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d1a7b0'},body:JSON.stringify({sessionId:'d1a7b0',location:'api.ts:createServiceRequestCheckout',message:'create-service-request-checkout error',data:{status:res.status,error:data?.error,gocardless_errors:data?.gocardless_errors,fullBody:data},timestamp:Date.now(),hypothesisId:'H500'})}).catch(()=>{});
+  }
+  // #endregion
+  if (!res.ok) throw new Error(data.error || `Checkout failed (${res.status})`);
+  if (!data.url) throw new Error(data.error || 'No checkout URL returned');
+  return { url: data.url, amount_pence: data.amount_pence ?? 15000 };
+}
+
+export async function finalizeServiceRequestPayment(billingRequestId: string): Promise<{ ok: boolean }> {
+  await supabase.auth.refreshSession();
+  const token = await getAccessToken();
+  const res = await fetch(FINALIZE_SERVICE_REQUEST_PAYMENT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ billing_request_id: billingRequestId, access_token: token }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Finalize failed (${res.status})`);
+  return data ?? { ok: true };
+}
+
 export interface ServiceRequestPayload {
   fullName: string;
   siteName?: string;
@@ -67,6 +119,11 @@ export interface ServiceRequestPayload {
   contactEmail: string;
   notes?: string;
   requestedDate: string; // ISO date (YYYY-MM-DD)
+  accessDifficulty: 'easy' | 'medium' | 'difficult';
+  applianceLocation: string;
+  accessInstructions: string;
+  equipmentRequired: string;
+  ppeRequired: string;
 }
 
 export async function createServiceRequest(payload: ServiceRequestPayload): Promise<void> {
@@ -85,6 +142,11 @@ export async function createServiceRequest(payload: ServiceRequestPayload): Prom
     contact_email: payload.contactEmail.trim().toLowerCase(),
     notes: payload.notes?.trim() || null,
     requested_date: payload.requestedDate,
+    access_difficulty: payload.accessDifficulty,
+    appliance_location: payload.applianceLocation.trim() || null,
+    access_instructions: payload.accessInstructions.trim() || null,
+    equipment_required: payload.equipmentRequired.trim() || null,
+    ppe_required: payload.ppeRequired.trim() || null,
   });
 
   if (error) {

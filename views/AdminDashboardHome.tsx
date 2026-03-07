@@ -120,6 +120,8 @@ const AdminDashboardHome: React.FC = () => {
     Object.keys(tr19Reports).filter((id) => tr19Reports[id] != null)
   );
   const overdueForRevenue = overdueJobs.filter((j) => !jobsWithCompletedTR19.has(j.id));
+  const overdueJobsDisplay = overdueJobs.filter((j) => !jobsWithCompletedTR19.has(j.id));
+  const dueSoonJobsDisplay = dueSoonJobs.filter((j) => !jobsWithCompletedTR19.has(j.id));
 
   const recentCertificates = jobs
     .filter((j) => tr19Reports[j.id] != null)
@@ -129,6 +131,7 @@ const AdminDashboardHome: React.FC = () => {
   const renewalItems = useMemo(() => {
     const items: (Job & { isOverdue: boolean; daysText: string })[] = [];
     for (const job of jobs) {
+      if (jobsWithCompletedTR19.has(job.id)) continue;
       const dueDateStr = job.warrantyEndDate;
       const dueDate = new Date(dueDateStr + (dueDateStr?.length === 10 ? 'T12:00:00' : ''));
       const dueTime = dueDate.getTime();
@@ -143,10 +146,11 @@ const AdminDashboardHome: React.FC = () => {
       });
     }
     return items.sort((a, b) => new Date(a.warrantyEndDate).getTime() - new Date(b.warrantyEndDate).getTime());
-  }, [jobs, now, ninetyDaysFromNow]);
+  }, [jobs, now, ninetyDaysFromNow, tr19Reports]);
 
   const jobsDueToSchedule = useMemo(() => {
     return jobs
+      .filter((j) => !jobsWithCompletedTR19.has(j.id))
       .filter((j) => {
         const due = new Date(j.warrantyEndDate + (j.warrantyEndDate?.length === 10 ? 'T12:00:00' : ''));
         return due <= ninetyDaysFromNow;
@@ -183,7 +187,7 @@ const AdminDashboardHome: React.FC = () => {
         } as ScheduleSiteData & { daysLeft: number; daysColor: string };
       })
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  }, [jobs, scheduledMap, now, ninetyDaysFromNow]);
+  }, [jobs, scheduledMap, now, ninetyDaysFromNow, tr19Reports]);
 
   const revenueSites: ScheduleSiteData[] = overdueForRevenue.map((job) => {
     const scheduled = scheduledMap[job.id];
@@ -463,7 +467,7 @@ const AdminDashboardHome: React.FC = () => {
           </div>
           <div>
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Overdue</p>
-            <p className="text-2xl font-black text-white">{overdueJobs.length}</p>
+            <p className="text-2xl font-black text-white">{overdueJobsDisplay.length}</p>
           </div>
         </div>
         <div className="bg-[#111111] p-6 rounded-2xl border border-[#333333] flex items-center gap-4">
@@ -472,7 +476,7 @@ const AdminDashboardHome: React.FC = () => {
           </div>
           <div>
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Due Soon</p>
-            <p className="text-2xl font-black text-white">{dueSoonJobs.length}</p>
+            <p className="text-2xl font-black text-white">{dueSoonJobsDisplay.length}</p>
           </div>
         </div>
         <div className="bg-[#111111] p-6 rounded-2xl border border-[#333333] flex items-center gap-4">

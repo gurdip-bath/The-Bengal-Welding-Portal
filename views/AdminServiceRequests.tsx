@@ -241,6 +241,29 @@ const AdminServiceRequests: React.FC = () => {
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Notes (from customer)</p>
                 <p className="text-white font-medium whitespace-pre-wrap">{detailsOpen.notes || '—'}</p>
               </div>
+              <div className="border-t border-[#333333] pt-4 mt-4 space-y-3">
+                <h4 className="text-[10px] font-bold text-[#F2C200] uppercase tracking-wider mb-2">Engineer Access</h4>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Access Difficulty</p>
+                  <p className="text-white font-medium">{detailsOpen.access_difficulty || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Appliance Location</p>
+                  <p className="text-white font-medium">{detailsOpen.appliance_location || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Access Instructions</p>
+                  <p className="text-white font-medium whitespace-pre-wrap">{detailsOpen.access_instructions || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Equipment Required</p>
+                  <p className="text-white font-medium">{detailsOpen.equipment_required || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">PPE Required</p>
+                  <p className="text-white font-medium">{detailsOpen.ppe_required || '—'}</p>
+                </div>
+              </div>
               {detailsOpen.admin_notes && (
                 <div className="p-4 rounded-xl bg-[#1A1A1A] border border-[#333333]">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">

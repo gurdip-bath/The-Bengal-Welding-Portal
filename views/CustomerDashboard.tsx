@@ -7,7 +7,7 @@ import { User, Job, QuoteRequest } from '../types';
 import { MOCK_JOBS } from '../mockData';
 import WarrantyCard from '../components/WarrantyCard';
 import { COLORS } from '../constants';
-import { createServiceRequest } from '../lib/api';
+import { createServiceRequest, hasServiceRequestPayment, createServiceRequestCheckout } from '../lib/api';
 import { listServiceRequestsForCustomer, type ServiceRequestRow } from '../lib/serviceRequests';
 import { listJobsForCustomer } from '../lib/jobs';
 
@@ -38,6 +38,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
     contactName: '',
     contactEmail: '',
     notes: '',
+    accessDifficulty: '' as '' | 'easy' | 'medium' | 'difficult',
+    applianceLocation: '',
+    accessInstructions: '',
+    equipmentRequired: '',
+    ppeRequired: '',
   });
   const [serviceRequestDate, setServiceRequestDate] = useState('');
   const [serviceSubmitting, setServiceSubmitting] = useState(false);
@@ -52,6 +57,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
       return new Set();
     }
   });
+  const [hasPayment, setHasPayment] = useState<boolean | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [showPaymentSuccessBanner, setShowPaymentSuccessBanner] = useState(false);
   const requestFormRef = React.useRef<HTMLDivElement>(null);
 
   const dismissBanner = (id: string) => {
@@ -72,6 +80,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
       contactName: req.contact_name || '',
       contactEmail: req.contact_email,
       notes: req.notes || '',
+      accessDifficulty: (req.access_difficulty as 'easy' | 'medium' | 'difficult') || '',
+      applianceLocation: req.appliance_location || '',
+      accessInstructions: req.access_instructions || '',
+      equipmentRequired: req.equipment_required || '',
+      ppeRequired: req.ppe_required || '',
     });
     setServiceRequestDate(req.requested_date);
     requestFormRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -86,6 +99,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
       contactName: '',
       contactEmail: '',
       notes: '',
+      accessDifficulty: '',
+      applianceLocation: '',
+      accessInstructions: '',
+      equipmentRequired: '',
+      ppeRequired: '',
     });
     setServiceRequestDate('');
   };
@@ -119,6 +137,26 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
     };
     load();
   }, [user.id]);
+
+  useEffect(() => {
+    hasServiceRequestPayment().then(setHasPayment).catch(() => setHasPayment(false));
+  }, []);
+
+  useEffect(() => {
+    const hash = window.location.hash || '';
+    const qIndex = hash.indexOf('?');
+    const query = qIndex >= 0 ? hash.slice(qIndex) : '';
+    const params = new URLSearchParams(query);
+    if (params.get('openRequestForm') === '1') {
+      requestFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    if (params.get('payment_success') === '1') {
+      setShowPaymentSuccessBanner(true);
+      const openForm = params.get('openRequestForm') === '1' ? '?openRequestForm=1' : '';
+      window.history.replaceState(null, '', `${window.location.pathname}#/dashboard${openForm}`);
+      setTimeout(() => setShowPaymentSuccessBanner(false), 5000);
+    }
+  }, []);
 
   const localMyJobs = allJobs.filter((j) => j.customerId === user.id);
   const seenIds = new Set<string>();
@@ -202,6 +240,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
         <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-green-500 text-black px-6 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce z-[100]">
           <i className="fas fa-check-circle"></i>
           <span className="text-sm font-bold uppercase tracking-tight">Profile Updated Successfully!</span>
+        </div>
+      )}
+      {showPaymentSuccessBanner && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-green-500 text-black px-6 py-3 rounded-full shadow-2xl flex items-center space-x-2 z-[100] animate-in fade-in duration-300">
+          <i className="fas fa-check-circle"></i>
+          <span className="text-sm font-bold uppercase tracking-tight">Direct Debit set up successfully. You can now request a service.</span>
         </div>
       )}
 
@@ -416,13 +460,13 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {myJobs.length === 0 ? (
+              {myJobs.filter((j) => j.status !== 'COMPLETED').length === 0 ? (
                 <div className="p-8 bg-[#111111] rounded-xl border border-dashed border-[#333333] text-center text-gray-500">
                   No active service orders found for your account ID.
                 </div>
               ) : (
                 <>
-                  {myJobs.map(job => (
+                  {myJobs.filter((j) => j.status !== 'COMPLETED').map(job => (
                     <Link 
                       key={job.id} 
                       to={`/jobs/${job.id}`}
@@ -457,6 +501,42 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
 
           <section ref={requestFormRef} className="bg-[#111111] border border-[#333333] p-6 rounded-2xl text-white">
             <h3 className="text-xl font-bold text-[#F2C200] mb-4">Request a Service</h3>
+            {hasPayment === null && (
+              <p className="text-gray-400 text-sm">Checking payment status…</p>
+            )}
+            {hasPayment === false && (
+              <div className="space-y-4">
+                <p className="text-gray-400 text-sm">
+                  To request a service, set up Direct Debit and pay the initial service fee. Future services can be charged via Direct Debit.
+                </p>
+                {serviceErrorMessage && (
+                  <div className="bg-red-500/20 border border-red-500/40 text-red-400 px-4 py-3 rounded-xl text-sm">
+                    {serviceErrorMessage}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={checkoutLoading}
+                  onClick={async () => {
+                    setServiceErrorMessage(null);
+                    try {
+                      setCheckoutLoading(true);
+                      const { url } = await createServiceRequestCheckout();
+                      window.location.href = url;
+                    } catch (e) {
+                      setServiceErrorMessage(e instanceof Error ? e.message : 'Failed to start checkout.');
+                    } finally {
+                      setCheckoutLoading(false);
+                    }
+                  }}
+                  className="px-6 py-3 rounded-xl font-bold bg-[#F2C200] text-black hover:brightness-110 disabled:opacity-60 transition-all"
+                >
+                  {checkoutLoading ? 'Redirecting…' : 'Set up Direct Debit & pay £150'}
+                </button>
+              </div>
+            )}
+            {hasPayment === true && (
+              <>
             <p className="text-gray-400 text-sm mb-6">
               Fill in the details below and our team will be in touch to arrange your service.
             </p>
@@ -470,6 +550,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                   setServiceErrorMessage('Please fill in your name, contact email and preferred service date.');
                   return;
                 }
+                if (!serviceRequest.accessDifficulty || !serviceRequest.applianceLocation || !serviceRequest.accessInstructions || !serviceRequest.equipmentRequired || !serviceRequest.ppeRequired) {
+                  setServiceErrorMessage('Please complete all Engineer Access Details fields.');
+                  return;
+                }
                 try {
                   setServiceSubmitting(true);
                   await createServiceRequest({
@@ -481,6 +565,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                     contactEmail: serviceRequest.contactEmail,
                     notes: serviceRequest.notes,
                     requestedDate: serviceRequestDate,
+                    accessDifficulty: serviceRequest.accessDifficulty,
+                    applianceLocation: serviceRequest.applianceLocation,
+                    accessInstructions: serviceRequest.accessInstructions,
+                    equipmentRequired: serviceRequest.equipmentRequired,
+                    ppeRequired: serviceRequest.ppeRequired,
                   });
                   resetServiceRequestForm();
                   setServiceSuccessMessage('Your service request has been submitted. We will be in touch shortly.');
@@ -578,6 +667,63 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                   placeholder="Add details of your appliance here and any notes I.E extraction hood, cooker etc."
                 />
               </div>
+              <div className="md:col-span-2 pt-2">
+                <h4 className="text-sm font-bold text-[#F2C200] mb-2">Engineer Access Details</h4>
+                <p className="text-xs text-gray-500 mb-4">Help our engineers prepare by providing site access details.</p>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Access Difficulty *</label>
+                <select
+                  value={serviceRequest.accessDifficulty}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, accessDifficulty: e.target.value as 'easy' | 'medium' | 'difficult' })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                >
+                  <option value="">Select...</option>
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="difficult">Difficult</option>
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Appliance Location *</label>
+                <input
+                  type="text"
+                  value={serviceRequest.applianceLocation}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, applianceLocation: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  placeholder="e.g. Main kitchen, rear"
+                />
+              </div>
+              <div className="flex flex-col md:col-span-2">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Access Instructions *</label>
+                <textarea
+                  rows={2}
+                  value={serviceRequest.accessInstructions}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, accessInstructions: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200] resize-none"
+                  placeholder="How to access the site / appliance"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">Equipment Required *</label>
+                <input
+                  type="text"
+                  value={serviceRequest.equipmentRequired}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, equipmentRequired: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  placeholder="e.g. Ladder, scaffolding"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-1">PPE Required *</label>
+                <input
+                  type="text"
+                  value={serviceRequest.ppeRequired}
+                  onChange={(e) => setServiceRequest({ ...serviceRequest, ppeRequired: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                  placeholder="e.g. Gloves, safety glasses"
+                />
+              </div>
               <div className="md:col-span-2 flex flex-col items-end gap-2 pt-2">
                 {serviceErrorMessage && (
                   <p className="text-xs text-red-400 self-start">{serviceErrorMessage}</p>
@@ -594,6 +740,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                 </button>
               </div>
             </form>
+              </>
+            )}
           </section>
         </>
       )}

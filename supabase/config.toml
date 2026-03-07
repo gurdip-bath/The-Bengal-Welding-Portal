@@ -6,3 +6,9 @@ verify_jwt = false
 
 [functions.list-users]
 verify_jwt = false
+
+[functions.create-service-request-checkout]
+verify_jwt = false
+
+[functions.finalize-service-request-payment]
+verify_jwt = false

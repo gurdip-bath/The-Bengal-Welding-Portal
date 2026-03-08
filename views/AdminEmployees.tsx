@@ -1,14 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '../contexts/AdminContext';
-import { getAllUsers } from '../lib/auth';
+import { getAllUsers, deleteUser } from '../lib/auth';
+import { supabase } from '../lib/supabase';
 import type { StoredUser } from '../lib/auth';
 
 const AdminEmployees: React.FC = () => {
   const { searchQuery, setSearchQuery, openAddEmployeeModal } = useAdmin();
   const [employees, setEmployees] = useState<StoredUser[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = () => getAllUsers().then((users) => setEmployees(users.filter((u) => u.role === 'ADMIN' || u.role === 'ENGINEER')));
 
   useEffect(() => {
-    getAllUsers().then((users) => setEmployees(users.filter((u) => u.role === 'ADMIN' || u.role === 'ENGINEER')));
+    refresh();
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setCurrentUserId(session?.user?.id ?? null));
   }, []);
   const matchesSearch = (text?: string) =>
     !searchQuery || (text || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -41,6 +51,11 @@ const AdminEmployees: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm font-medium">
+          {error}
+        </div>
+      )}
       <div className="bg-[#111111] rounded-2xl border border-[#333333] overflow-x-auto">
         <table className="w-full text-left min-w-[600px]">
           <thead className="bg-[#1A1A1A] border-b border-[#333333]">
@@ -49,6 +64,7 @@ const AdminEmployees: React.FC = () => {
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Email</th>
               <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
+              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#333333]">
@@ -63,6 +79,29 @@ const AdminEmployees: React.FC = () => {
                   <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#F2C200]/20 text-[#F2C200] text-[10px] font-black uppercase tracking-widest">
                     {emp.role === 'ENGINEER' ? 'Engineer' : emp.role === 'ADMIN' ? 'Admin' : emp.role}
                   </span>
+                </td>
+                <td className="px-6 py-4">
+                  {emp.id !== currentUserId ? (
+                    <button
+                      type="button"
+                      disabled={deletingId === emp.id}
+                      onClick={async () => {
+                        if (!window.confirm(`Remove ${emp.name || emp.email}? They will lose access to the app.`)) return;
+                        setError(null);
+                        setDeletingId(emp.id);
+                        const result = await deleteUser(emp.id);
+                        setDeletingId(null);
+                        if (result.success) {
+                          setError(null);
+                          refresh();
+                        } else setError(result.error ?? 'Failed to remove');
+                      }}
+                      className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                      title="Remove employee"
+                    >
+                      <i className={`fas ${deletingId === emp.id ? 'fa-spinner fa-spin' : 'fa-trash'}`} />
+                    </button>
+                  ) : null}
                 </td>
               </tr>
             ))}

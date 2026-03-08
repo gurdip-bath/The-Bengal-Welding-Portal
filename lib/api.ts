@@ -70,7 +70,6 @@ export async function hasServiceRequestPayment(): Promise<boolean> {
 }
 
 export async function createServiceRequestCheckout(): Promise<{ url: string; amount_pence: number }> {
-  await supabase.auth.refreshSession();
   const token = await getAccessToken();
   const res = await fetch(SERVICE_REQUEST_CHECKOUT_URL, {
     method: 'POST',

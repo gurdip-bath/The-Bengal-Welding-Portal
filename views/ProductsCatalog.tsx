@@ -1,31 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MOCK_PRODUCTS } from '../mockData';
-import { Product } from '../types';
-import { User } from '../types';
-import { createGreasePlanCheckoutSession } from '../lib/api';
+import { Product, User } from '../types';
 
 interface ProductsCatalogProps {
   onRequestQuote: (product: Product, notes?: string, image?: string) => void;
   user?: User | null;
 }
 
-const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote, user }) => {
+const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => {
+  const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [subscribing, setSubscribing] = useState(false);
-  const [subError, setSubError] = useState<string | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  useEffect(() => {
-    if (searchParams.get('subscribed') === 'success') {
-      setToastMessage('Subscription set up! You will receive confirmation shortly.');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 5000);
-      setSearchParams({});
-    }
-  }, [searchParams, setSearchParams]);
   const categories = ['All', ...new Set(MOCK_PRODUCTS.map(p => p.category))];
   const filteredProducts = selectedCategory === 'All' 
     ? MOCK_PRODUCTS 
@@ -38,16 +25,8 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote, user 
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  const handleGreasePlanSubscribe = async () => {
-    setSubscribing(true);
-    setSubError(null);
-    try {
-      const url = await createGreasePlanCheckoutSession(user?.email);
-      window.location.href = url;
-    } catch (err) {
-      setSubError(err instanceof Error ? err.message : 'Failed to start checkout');
-      setSubscribing(false);
-    }
+  const handleRequestService = () => {
+    navigate('/dashboard?openRequestForm=1');
   };
 
   return (
@@ -101,11 +80,10 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote, user 
                   <div className="flex gap-2">
                     {product.name === 'Grease Cleaning Service Plan' ? (
                       <button 
-                        onClick={handleGreasePlanSubscribe}
-                        disabled={subscribing}
-                        className="bg-[#635BFF] text-white px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all disabled:opacity-60"
+                        onClick={handleRequestService}
+                        className="bg-[#F2C200] text-black px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all"
                       >
-                        {subscribing ? 'Loading…' : 'Subscribe'}
+                        Request a Service
                       </button>
                     ) : (
                       <button 
@@ -122,12 +100,6 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote, user 
           </div>
         ))}
       </div>
-
-      {subError && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-red-500/90 text-white px-4 py-2 rounded-lg text-sm z-[120]">
-          {subError}
-        </div>
-      )}
 
       {/* Success Toast */}
       {showToast && (

@@ -198,3 +198,23 @@ export async function registerEmployee(data: {
   };
   return { success: true, user };
 }
+
+export async function deleteUser(userId: string): Promise<{ success: boolean; error?: string }> {
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+  await supabase.auth.refreshSession();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return { success: false, error: 'Not authenticated' };
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-user`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ userId }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) return { success: false, error: json.error || `Request failed (${res.status})` };
+  return { success: true };
+}

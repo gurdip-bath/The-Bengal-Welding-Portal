@@ -147,8 +147,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
     const qIndex = hash.indexOf('?');
     const query = qIndex >= 0 ? hash.slice(qIndex) : '';
     const params = new URLSearchParams(query);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     if (params.get('openRequestForm') === '1') {
-      requestFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const scrollToForm = () => requestFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      timeoutId = setTimeout(scrollToForm, 150);
     }
     if (params.get('payment_success') === '1') {
       setShowPaymentSuccessBanner(true);
@@ -156,6 +158,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
       window.history.replaceState(null, '', `${window.location.pathname}#/dashboard${openForm}`);
       setTimeout(() => setShowPaymentSuccessBanner(false), 5000);
     }
+    return () => { if (timeoutId) clearTimeout(timeoutId); };
   }, []);
 
   const localMyJobs = allJobs.filter((j) => j.customerId === user.id);

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOGO_URL = 'https://bengalwelding.co.uk/wp-content/uploads/2025/08/PNG-LOGO.png';
 const SIZES = [180, 192, 512];
+const CROP = { left: 0, top: 0, width: 250, height: 120 };
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 async function fetchImage(url) {
@@ -27,6 +28,7 @@ async function main() {
   for (const size of SIZES) {
     const outputPath = path.join(PUBLIC_DIR, `icon-${size}.png`);
     await sharp(logoBuffer)
+      .extract(CROP)
       .resize(size, size)
       .png()
       .toBuffer()

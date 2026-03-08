@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
         react(),
         VitePWA({
           registerType: 'autoUpdate',
-          includeAssets: ['icon-192.png', 'icon-512.png'],
+          includeAssets: ['icon-180.png', 'icon-192.png', 'icon-512.png'],
           workbox: {
             maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
           },
@@ -27,8 +27,9 @@ export default defineConfig(({ mode }) => {
             display: 'standalone',
             start_url: '/',
             icons: [
-              { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-              { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+              { src: '/icon-180.png', sizes: '180x180', type: 'image/png', purpose: 'any' },
+              { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+              { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
             ],
           },
         }),

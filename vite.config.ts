@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
           manifest: {
             name: 'Bengal Welding Portal',
             short_name: 'Bengal Welding',
-            description: 'Access your quotes, warranties, and equipment',
+            description: 'Access your warranties and equipment',
             theme_color: '#000000',
             background_color: '#000000',
             display: 'standalone',

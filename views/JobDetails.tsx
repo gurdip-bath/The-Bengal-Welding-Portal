@@ -1,11 +1,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { MOCK_JOBS } from '../mockData';
-import { UserRole, FileMeta, JobStatus, Job, JobNote } from '../types';
+import { UserRole, JobStatus, Job, JobNote } from '../types';
 import { getSiteName, getJobIdentifierAndService } from '../utils/jobIdentity';
 import WarrantyCard from '../components/WarrantyCard';
 import { COLORS } from '../constants';
+import { createWarrantyClaim } from '../lib/warrantyClaims';
+import { updateJob, getJobById } from '../lib/jobs';
 
 interface JobDetailsProps {
   role: UserRole;
@@ -32,14 +36,19 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [fullDetailsOpen, setFullDetailsOpen] = useState(false);
+  const [showWarrantyClaimForm, setShowWarrantyClaimForm] = useState(false);
+  const [warrantyClaimForm, setWarrantyClaimForm] = useState({ description: '', dateOfIssue: '', contactEmail: '', contactPhone: '' });
+  const [claimSubmitting, setClaimSubmitting] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimSuccess, setClaimSuccess] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    let found: Job | undefined;
     const localJobs = JSON.parse(localStorage.getItem('bengal_jobs') || '[]');
     const source = localJobs.length > 0 ? localJobs : MOCK_JOBS;
-    let found = source.find((j: Job) => j.id === id);
+    found = source.find((j: Job) => j.id === id);
     if (!found && id) {
-      // Fallback: load job from survey (keeps job visible until survey is completed)
       const surveys = JSON.parse(localStorage.getItem('bengal_surveys') || '[]');
       const survey = surveys.find((s: { jobId: string }) => s.jobId === id);
       if (survey) {
@@ -62,6 +71,13 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
     if (found) {
       setJob(found);
       setEditForm(found);
+    } else if (id) {
+      getJobById(id).then((supabaseJob) => {
+        if (supabaseJob) {
+          setJob(supabaseJob);
+          setEditForm(supabaseJob);
+        }
+      });
     }
   }, [id]);
 
@@ -80,10 +96,30 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
     localStorage.setItem('bengal_jobs', JSON.stringify(newLocal));
   };
 
-  const handleUpdateJobRecord = () => {
+  const handleUpdateJobRecord = async () => {
     if (job && editForm.title) {
       const updatedJob = { ...job, ...editForm } as Job;
       saveJob(updatedJob);
+      try {
+        await updateJob(job.id, {
+          title: updatedJob.title,
+          description: updatedJob.description,
+          status: updatedJob.status,
+          start_date: updatedJob.startDate,
+          warranty_end_date: updatedJob.warrantyEndDate,
+          payment_status: updatedJob.paymentStatus,
+          amount: updatedJob.amount,
+          is_gas_appliance: updatedJob.isGasAppliance ?? false,
+          gar_code: updatedJob.garCode || null,
+          access_difficulty: updatedJob.accessDifficulty || null,
+          appliance_location: updatedJob.applianceLocation || null,
+          access_instructions: updatedJob.accessInstructions || null,
+          equipment_required: updatedJob.equipmentRequired || null,
+          ppe_required: updatedJob.ppeRequired || null,
+        });
+      } catch {
+        // Job may not exist in Supabase (local only)
+      }
       setIsEditing(false);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
@@ -211,6 +247,12 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <WarrantyCard endDate={job.warrantyEndDate} />
                 <div className="bg-black/40 p-5 rounded-2xl border border-[#333333] flex flex-col justify-center">
+                  {job.isGasAppliance && job.garCode && (
+                    <>
+                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">GAR Code</p>
+                      <p className="text-lg font-bold text-[#F2C200] mb-4">{job.garCode}</p>
+                    </>
+                  )}
                   <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Service Commencement</h4>
                   <div className="flex items-center space-x-3">
                     <i className="fas fa-calendar-check text-[#F2C200]"></i>
@@ -226,6 +268,23 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                   )}
                 </div>
               </div>
+              {role === 'CUSTOMER' && (
+                <div className="mt-8 pt-8 border-t border-[#333333]">
+                  <h3 className="text-[10px] font-black text-[#F2C200] uppercase tracking-[0.3em] mb-2">Warranty</h3>
+                  <p className="text-gray-400 text-sm mb-4">Experiencing an issue with this product? Submit a warranty claim and our team will assist you.</p>
+                  <button
+                    onClick={() => {
+                      setShowWarrantyClaimForm(true);
+                      setWarrantyClaimForm({ description: '', dateOfIssue: '', contactEmail: '', contactPhone: '' });
+                      setClaimError(null);
+                      setClaimSuccess(false);
+                    }}
+                    className="px-6 py-3 rounded-xl font-bold bg-[#F2C200] text-black hover:brightness-110 transition-all"
+                  >
+                    <i className="fas fa-file-contract mr-2"></i>Make a Claim
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -462,6 +521,29 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                     className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl" 
                   />
                 </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editForm.isGasAppliance ?? false}
+                      onChange={(e) => setEditForm({ ...editForm, isGasAppliance: e.target.checked })}
+                      className="rounded border-[#333333] bg-black text-[#F2C200] focus:ring-[#F2C200]"
+                    />
+                    <span className="text-xs font-bold text-gray-500 uppercase">Gas Appliance</span>
+                  </label>
+                </div>
+                {editForm.isGasAppliance && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">GAR Code</label>
+                    <input
+                      type="text"
+                      value={editForm.garCode || ''}
+                      onChange={(e) => setEditForm({ ...editForm, garCode: e.target.value })}
+                      placeholder="e.g. GAR-12345"
+                      className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl"
+                    />
+                  </div>
+                )}
               </div>
               <div className="pt-4 border-t border-[#333333]">
                 <h4 className="text-xs font-bold text-[#F2C200] uppercase mb-3">Engineer Access</h4>
@@ -623,6 +705,114 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                   </div>
                 </section>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warranty Claim Form Modal (customer only) */}
+      {showWarrantyClaimForm && role === 'CUSTOMER' && job && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+          <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-[#F2C200] p-6 text-black flex justify-between items-center">
+              <h2 className="text-xl font-bold">Warranty Claim</h2>
+              <button onClick={() => setShowWarrantyClaimForm(false)} className="text-black hover:opacity-70">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="bg-black/40 p-4 rounded-xl border border-[#333333]">
+                <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Product</p>
+                <p className="text-white font-bold">{job.title}</p>
+                {job.isGasAppliance && job.garCode && (
+                  <p className="text-sm text-[#F2C200] mt-1">GAR: {job.garCode}</p>
+                )}
+              </div>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setClaimError(null);
+                  if (!warrantyClaimForm.description.trim()) {
+                    setClaimError('Please describe the issue.');
+                    return;
+                  }
+                  try {
+                    setClaimSubmitting(true);
+                    await createWarrantyClaim({
+                      jobId: job.id,
+                      productName: job.title,
+                      garCode: job.garCode || undefined,
+                      description: warrantyClaimForm.description,
+                      dateOfIssue: warrantyClaimForm.dateOfIssue || undefined,
+                      contactEmail: warrantyClaimForm.contactEmail || undefined,
+                      contactPhone: warrantyClaimForm.contactPhone || undefined,
+                    });
+                    setClaimSuccess(true);
+                    setWarrantyClaimForm({ description: '', dateOfIssue: '', contactEmail: '', contactPhone: '' });
+                    setTimeout(() => {
+                      setShowWarrantyClaimForm(false);
+                      setClaimSuccess(false);
+                    }, 2000);
+                  } catch (err) {
+                    setClaimError(err instanceof Error ? err.message : 'Failed to submit claim.');
+                  } finally {
+                    setClaimSubmitting(false);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Issue Description *</label>
+                  <textarea
+                    rows={4}
+                    value={warrantyClaimForm.description}
+                    onChange={(e) => setWarrantyClaimForm({ ...warrantyClaimForm, description: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200] resize-none"
+                    placeholder="Describe the issue you are experiencing..."
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Date of Issue</label>
+                  <DatePicker
+                    selected={warrantyClaimForm.dateOfIssue ? new Date(warrantyClaimForm.dateOfIssue) : null}
+                    onChange={(d) => setWarrantyClaimForm({ ...warrantyClaimForm, dateOfIssue: d ? d.toISOString().split('T')[0] : '' })}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Select date"
+                    className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                    calendarClassName="react-datepicker-dark"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Contact Email</label>
+                  <input
+                    type="email"
+                    value={warrantyClaimForm.contactEmail}
+                    onChange={(e) => setWarrantyClaimForm({ ...warrantyClaimForm, contactEmail: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                    placeholder="Preferred contact email"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    value={warrantyClaimForm.contactPhone}
+                    onChange={(e) => setWarrantyClaimForm({ ...warrantyClaimForm, contactPhone: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                    placeholder="Preferred contact phone"
+                  />
+                </div>
+                {claimError && <p className="text-xs text-red-400">{claimError}</p>}
+                {claimSuccess && <p className="text-xs text-green-400">Claim submitted successfully. We will be in touch shortly.</p>}
+                <button
+                  type="submit"
+                  disabled={claimSubmitting}
+                  className="w-full bg-[#F2C200] text-black py-4 rounded-2xl font-black uppercase tracking-widest hover:brightness-110 disabled:opacity-60 transition-all"
+                >
+                  {claimSubmitting ? 'Submitting...' : 'Submit Claim'}
+                </button>
+              </form>
             </div>
           </div>
         </div>

@@ -9,6 +9,8 @@ const LOGO_URL = 'https://bengalwelding.co.uk/wp-content/uploads/2025/08/PNG-LOG
 const SIZES = [180, 192, 512];
 const CROP = { left: 0, top: 0, width: 250, height: 120 };
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+// Scale factor: 0.55 = logo is 55% of icon size (smaller 'b', more padding). Range 0.4-0.7.
+const LOGO_SCALE = 0.55;
 
 async function fetchImage(url) {
   return new Promise((resolve, reject) => {
@@ -27,9 +29,10 @@ async function main() {
 
   for (const size of SIZES) {
     const outputPath = path.join(PUBLIC_DIR, `icon-${size}.png`);
+    const logoSize = Math.round(size * LOGO_SCALE);
     await sharp(logoBuffer)
       .extract(CROP)
-      .resize(size, size)
+      .resize(logoSize, logoSize)
       .png()
       .toBuffer()
       .then((resized) =>

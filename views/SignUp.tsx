@@ -87,7 +87,7 @@ const SignUp: React.FC<SignUpProps> = ({ onLogin }) => {
         </h1>
         <p className="text-gray-400 text-sm mt-2 px-4">
           {step === 1
-            ? 'Create a customer account to request quotes and manage your equipment.'
+            ? 'Create a customer account to manage your equipment and warranties.'
             : 'Add optional contact details (you can skip this step).'}
         </p>
         {step === 2 && (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { User, QuoteRequest, Product } from './types';
+import { User } from './types';
 import { supabase } from './lib/supabase';
 import { mapSessionToUserWithProfile, signOut as authSignOut } from './lib/auth';
 import Navbar from './components/Navbar';
@@ -10,12 +10,14 @@ import AdminDashboardHome from './views/AdminDashboardHome';
 import AdminJobs from './views/AdminJobs';
 import AdminSites from './views/AdminSites';
 import AdminCertificates from './views/AdminCertificates';
-import AdminSurveys from './views/AdminSurveys';
+import AdminTR19 from './views/AdminTR19';
 import AdminSurveyForm from './views/AdminSurveyForm';
+import AdminSiteSurveyForm from './views/AdminSiteSurveyForm';
 import AdminTR19ReportForm from './views/TR19ReportForm';
 import AdminReportLog from './views/AdminReportLog';
-import AdminQuotes from './views/AdminQuotes';
 import AdminServiceRequests from './views/AdminServiceRequests';
+import AdminComplaints from './views/AdminComplaints';
+import AdminWarrantyClaims from './views/AdminWarrantyClaims';
 import AdminEmployees from './views/AdminEmployees';
 import ProductsCatalog from './views/ProductsCatalog';
 import GoCardlessCallback from './views/GoCardlessCallback';
@@ -28,14 +30,6 @@ import AddToHomeScreenPrompt from './components/AddToHomeScreenPrompt';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
-
-  useEffect(() => {
-    const savedQuotes = localStorage.getItem('bengal_quotes');
-    if (savedQuotes) {
-      setQuotes(JSON.parse(savedQuotes));
-    }
-  }, []);
 
   // Supabase auth state
   useEffect(() => {
@@ -67,42 +61,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleRequestQuote = (product: Product, notes?: string, image?: string) => {
-    if (!user) return;
-    const newQuote: QuoteRequest = {
-      id: `Q-${Math.floor(Math.random() * 10000)}`,
-      productName: product.name,
-      productImage: product.image,
-      customerId: user.id,
-      customerName: user.name,
-      customerEmail: user.email,
-      date: new Date().toISOString(),
-      status: 'NEW',
-      customerNotes: notes,
-      applianceImage: image,
-    };
-    const updatedQuotes = [newQuote, ...quotes];
-    setQuotes(updatedQuotes);
-    localStorage.setItem('bengal_quotes', JSON.stringify(updatedQuotes));
-  };
-
-  const handleAdminUpdateQuote = (quoteId: string, price: number, notes: string) => {
-    const updatedQuotes = quotes.map(q => 
-      q.id === quoteId ? { ...q, price, adminNotes: notes, status: 'QUOTED' as const } : q
-    );
-    setQuotes(updatedQuotes);
-    localStorage.setItem('bengal_quotes', JSON.stringify(updatedQuotes));
-  };
-
-  const handleCustomerPayQuote = (quoteId: string) => {
-    window.open('https://www.paypal.com/paypalme/bengalwelding', '_blank');
-    const updatedQuotes = quotes.map(q =>
-      q.id === quoteId ? { ...q, status: 'PENDING_PAYMENT' as const } : q
-    );
-    setQuotes(updatedQuotes);
-    localStorage.setItem('bengal_quotes', JSON.stringify(updatedQuotes));
-  };
-
   return (
     <Router>
       <div className="min-h-screen bg-black flex flex-col pb-20 md:pb-0 overflow-x-hidden w-full max-w-[100vw]">
@@ -119,23 +77,28 @@ const App: React.FC = () => {
             ) : (
               <>
                 {(user.role === 'ADMIN' || user.role === 'ENGINEER') ? (
-                  <Route path="/dashboard" element={<AdminWrapper user={user} quotes={quotes} onUpdateQuote={handleAdminUpdateQuote} onLogout={handleLogout} />}>
+                  <Route path="/dashboard" element={<AdminWrapper user={user} onLogout={handleLogout} />}>
                     <Route index element={<AdminDashboardHome />} />
                     <Route path="service-requests" element={<AdminServiceRequests />} />
                     <Route path="jobs" element={<AdminJobs />} />
                     <Route path="sites" element={<AdminSites />} />
                     <Route path="certificates" element={<AdminCertificates />} />
-                    <Route path="surveys" element={<AdminSurveys />} />
+                    <Route path="tr19" element={<AdminTR19 />} />
+                    <Route path="tr19/add" element={<AdminSiteSurveyForm />} />
+                    <Route path="tr19/edit/:id" element={<AdminSiteSurveyForm />} />
+                    <Route path="surveys" element={<Navigate to="/dashboard/tr19" replace />} />
                     <Route path="surveys/start/:jobId" element={<AdminSurveyForm />} />
                     <Route path="jobs/:jobId/tr19-report" element={<AdminTR19ReportForm />} />
                     <Route path="report-log" element={<AdminReportLog />} />
-                    <Route path="quotes" element={<AdminQuotes />} />
+                    <Route path="complaints" element={<AdminComplaints />} />
+                    <Route path="warranty-claims" element={<AdminWarrantyClaims />} />
+                    <Route path="quotes" element={<Navigate to="/dashboard" replace />} />
                     <Route path="employees" element={<AdminEmployees />} />
                   </Route>
                 ) : (
-                  <Route path="/dashboard" element={<CustomerDashboard user={user} quotes={quotes} onPayQuote={handleCustomerPayQuote} />} />
+                  <Route path="/dashboard" element={<CustomerDashboard user={user} />} />
                 )}
-                <Route path="/products" element={<ProductsCatalog onRequestQuote={handleRequestQuote} user={user} />} />
+                <Route path="/products" element={<ProductsCatalog user={user} />} />
                 <Route path="/gocardless/callback" element={<GoCardlessCallback />} />
                 <Route path="/gocardless/service-request/callback" element={<GoCardlessServiceRequestCallback />} />
                 <Route path="/jobs/:id" element={<JobDetails role={user.role} />} />

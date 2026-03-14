@@ -13,7 +13,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: 'fa-gauge' },
-    { label: 'Products', path: '/products', icon: 'fa-box-open' },
+    { label: 'Equipment', path: '/products', icon: 'fa-box-open' },
   ];
 
   const isActive = (path: string) => location.pathname === path;

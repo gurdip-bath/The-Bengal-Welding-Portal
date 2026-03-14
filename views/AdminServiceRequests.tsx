@@ -5,13 +5,11 @@ import {
   rejectServiceRequest,
   type ServiceRequestRow,
   type ServiceRequestStatus,
+  type PaymentType,
 } from '../lib/serviceRequests';
-import { createJobFromServiceRequest } from '../lib/jobs';
-import { useAdmin } from '../contexts/AdminContext';
 import { COLORS } from '../constants';
 
 const AdminServiceRequests: React.FC = () => {
-  const { jobs, setJobs } = useAdmin();
   const [requests, setRequests] = useState<ServiceRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +17,10 @@ const AdminServiceRequests: React.FC = () => {
   const [action, setAction] = useState<'approve' | 'reject' | null>(null);
   const [detailsOpen, setDetailsOpen] = useState<ServiceRequestRow | null>(null);
   const [notes, setNotes] = useState('');
+  const [paymentType, setPaymentType] = useState<PaymentType>('both');
+  const [oneOffAmountPence, setOneOffAmountPence] = useState<number>(15000);
+  const [ddAmountPence, setDdAmountPence] = useState<number>(5000);
+  const [ddDayOfMonth, setDdDayOfMonth] = useState<number>(15);
   const [submitting, setSubmitting] = useState(false);
 
   const fetch = async () => {
@@ -44,20 +46,27 @@ const AdminServiceRequests: React.FC = () => {
 
   const handleApprove = async () => {
     if (!selected || !notes.trim()) return;
+    const needsOneOff = paymentType === 'one_off' || paymentType === 'both';
+    const needsDd = paymentType === 'dd_only' || paymentType === 'both';
+    if (needsOneOff && (oneOffAmountPence < 100)) return;
+    if (needsDd && (ddAmountPence < 100 || ddDayOfMonth < 1 || ddDayOfMonth > 28)) return;
     setSubmitting(true);
     try {
-      await approveServiceRequest(selected.id, notes);
-      const job = await createJobFromServiceRequest(selected);
-      setJobs((prev) => {
-        const next = [job, ...prev];
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('bengal_jobs', JSON.stringify(next));
-        }
-        return next;
+      await approveServiceRequest({
+        id: selected.id,
+        adminNotes: notes,
+        paymentType,
+        oneOffAmountPence: needsOneOff ? oneOffAmountPence : undefined,
+        ddAmountPence: needsDd ? ddAmountPence : undefined,
+        ddDayOfMonth: needsDd ? ddDayOfMonth : undefined,
       });
       setSelected(null);
       setAction(null);
       setNotes('');
+      setPaymentType('both');
+      setOneOffAmountPence(15000);
+      setDdAmountPence(5000);
+      setDdDayOfMonth(15);
       await fetch();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to approve');
@@ -86,6 +95,12 @@ const AdminServiceRequests: React.FC = () => {
     setSelected(req);
     setAction(a);
     setNotes('');
+    if (a === 'approve') {
+      setPaymentType('both');
+      setOneOffAmountPence(15000);
+      setDdAmountPence(5000);
+      setDdDayOfMonth(15);
+    }
   };
 
   const StatusBadge = ({ status }: { status: ServiceRequestStatus }) => {
@@ -329,11 +344,89 @@ const AdminServiceRequests: React.FC = () => {
               </h3>
               <p className="text-sm text-gray-400">{selected.business_name || selected.full_name}</p>
             </div>
-            <div className="p-4">
-              <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
-                Notes (required)
-              </label>
-              <textarea
+            <div className="p-4 space-y-4">
+              {action === 'approve' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Payment type</label>
+                    <div className="flex flex-wrap gap-2">
+                      {(['one_off', 'dd_only', 'both'] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setPaymentType(t)}
+                          className={`px-3 py-2 rounded-lg text-sm font-bold capitalize ${
+                            paymentType === t
+                              ? 'bg-[#F2C200] text-black'
+                              : 'bg-[#1A1A1A] border border-[#333333] text-gray-400 hover:border-[#555]'
+                          }`}
+                        >
+                          {t === 'one_off' ? 'One-off only' : t === 'dd_only' ? 'Direct Debit only' : 'Both'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {(paymentType === 'one_off' || paymentType === 'both') && (
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-2">One-off amount (charged immediately)</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-medium">£</span>
+                        <input
+                          type="number"
+                          min="1"
+                          step="0.01"
+                          value={(oneOffAmountPence / 100).toFixed(2)}
+                          onChange={(e) => {
+                            const v = Math.round(parseFloat(e.target.value || '0') * 100);
+                            setOneOffAmountPence(Math.max(100, v));
+                          }}
+                          className="flex-1 px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                          placeholder="150.00"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {(paymentType === 'dd_only' || paymentType === 'both') && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Direct Debit amount (monthly)</label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-medium">£</span>
+                          <input
+                            type="number"
+                            min="1"
+                            step="0.01"
+                            value={(ddAmountPence / 100).toFixed(2)}
+                            onChange={(e) => {
+                              const v = Math.round(parseFloat(e.target.value || '0') * 100);
+                              setDdAmountPence(Math.max(100, v));
+                            }}
+                            className="flex-1 px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                            placeholder="50.00"
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">First DD payment ~14 days after setup, then monthly.</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Day of month (1–28)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={28}
+                          value={ddDayOfMonth}
+                          onChange={(e) => setDdDayOfMonth(Math.min(28, Math.max(1, parseInt(e.target.value || '1', 10) || 1)))}
+                          className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
+                  Notes (required)
+                </label>
+                <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={4}
@@ -344,6 +437,7 @@ const AdminServiceRequests: React.FC = () => {
                 }
                 className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200] resize-none"
               />
+              </div>
             </div>
             <div className="p-4 flex gap-3 border-t border-[#333333]">
               <button
@@ -358,7 +452,13 @@ const AdminServiceRequests: React.FC = () => {
               </button>
               <button
                 onClick={action === 'approve' ? handleApprove : handleReject}
-                disabled={!notes.trim() || submitting}
+                disabled={
+                  !notes.trim() ||
+                  submitting ||
+                  (action === 'approve' &&
+                    (((paymentType === 'one_off' || paymentType === 'both') && oneOffAmountPence < 100) ||
+                      ((paymentType === 'dd_only' || paymentType === 'both') && (ddAmountPence < 100 || ddDayOfMonth < 1 || ddDayOfMonth > 28))))
+                }
                 className={`flex-1 py-2 rounded-xl font-bold ${
                   action === 'approve'
                     ? 'bg-green-600 hover:bg-green-500 text-white disabled:opacity-50'

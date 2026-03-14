@@ -31,7 +31,7 @@ interface ScheduledRenewal {
 const SCHEDULED_STORAGE_KEY = 'bengal_revenue_scheduled';
 
 const AdminDashboardHome: React.FC = () => {
-  const { jobs, setJobs, quotes, openAddJobModal } = useAdmin();
+  const { jobs, setJobs, openAddJobModal } = useAdmin();
   const [scheduledMap, setScheduledMap] = useState<Record<string, ScheduledRenewal>>(() => {
     try {
       const stored = localStorage.getItem(SCHEDULED_STORAGE_KEY);
@@ -85,8 +85,6 @@ const AdminDashboardHome: React.FC = () => {
     const expiry = new Date(j.warrantyEndDate);
     return expiry > now && expiry <= ninetyDaysFromNow;
   });
-  const pendingQuotes = quotes.filter((q) => q.status === 'NEW' || q.status === 'QUOTED' || q.status === 'PENDING_PAYMENT');
-
   const getPostcode = (job: Job) =>
     job.customerPostcode || (job.customerAddress ? job.customerAddress.split(',').pop()?.trim() || '' : '');
 
@@ -293,163 +291,6 @@ const AdminDashboardHome: React.FC = () => {
         </div>
       </div>
 
-      {/* Revenue Protection Section - Layout from reference image */}
-      <div className="bg-[#111111] rounded-2xl border border-[#333333] overflow-hidden">
-        {/* Section Header */}
-        <div className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#333333]">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]">
-              <i className="fas fa-shield-halved text-xl"></i>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">Revenue Protection</h2>
-              <p className="text-gray-500 text-sm font-bold">Overdue certificates — schedule job → survey → generate certificate</p>
-            </div>
-          </div>
-          <Link
-            to="/dashboard/certificates"
-            className="px-6 py-3 rounded-xl font-bold text-sm bg-[#F2C200] text-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[#F2C2001A] whitespace-nowrap"
-          >
-            Manage Certificates
-          </Link>
-        </div>
-
-        {/* Stat Cards - Vertical Stack */}
-        <div className="p-6 space-y-4">
-          {/* DUE THIS MONTH */}
-          <div className="bg-black rounded-xl border border-[#333333] p-4 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
-              <i className="fas fa-calendar-clock"></i>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Due This Month</p>
-              <p className="text-2xl font-black text-white">£{dueThisMonthValue.toLocaleString()}</p>
-              <p className="text-xs text-gray-500 font-bold">{dueThisMonthCount} sites</p>
-            </div>
-          </div>
-
-          {/* REVENUE AT RISK - sum of overdue certificate values not yet scheduled; only show when > 0 */}
-          {revenueAtRisk > 0 && (
-            <div className="bg-black rounded-xl border border-[#333333] p-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
-                <i className="fas fa-triangle-exclamation"></i>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Revenue at Risk</p>
-                <p className="text-2xl font-black text-red-500">£{revenueAtRisk.toLocaleString()}</p>
-                <p className="text-xs text-gray-500 font-bold">
-                  Sum of {revenueSites.length} overdue site{revenueSites.length !== 1 ? 's' : ''} pending TR19
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* PROTECTED THIS QTR */}
-          <div className="bg-black rounded-xl border border-[#333333] p-4 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500 shrink-0">
-              <i className="fas fa-circle-dollar-to-slot"></i>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Protected This Qtr</p>
-              <p className="text-2xl font-black text-green-500">£{protectedThisQtr.toLocaleString()}</p>
-              <p className="text-xs text-gray-500 font-bold">Scheduled + completed in last 90 days</p>
-            </div>
-          </div>
-
-          {/* Site Cards - jobs due within 90 days, color-coded: red (0-30d), yellow (31-60d), green (61-90d) */}
-          {jobsDueToSchedule.length === 0 ? (
-            <div className="bg-black rounded-xl border border-[#333333] p-8 text-center">
-              <p className="text-gray-500 font-bold">No jobs due within 90 days.</p>
-              <p className="text-xs text-gray-600 mt-1">Jobs due for scheduling will appear here.</p>
-            </div>
-          ) : (
-          jobsDueToSchedule.map((site) =>
-            site.isScheduled ? (
-              <div
-                key={site.id}
-                className="bg-[#1A1A1A] rounded-xl border border-[#333333] p-4 relative"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-lg font-black text-white truncate">{site.clientName}</p>
-                    <p className="text-xs text-gray-400 font-bold truncate">{site.siteName}</p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-[#F2C200]/20 flex items-center justify-center text-[#F2C200] shrink-0">
-                    <i className="fas fa-check text-sm"></i>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <span className="text-amber-500 text-xs font-bold">{site.dueDateShort}</span>
-                  <span className="text-white font-bold">£{site.contractValue.toLocaleString()}</span>
-                  {site.jobId ? (
-                    <Link
-                      to={`/jobs/${site.jobId}`}
-                      className="px-4 py-2 rounded-xl font-bold text-xs bg-[#0070ba] text-white hover:brightness-110 transition-all"
-                    >
-                      View Record
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setScheduleSite({ ...site, daysText: site.daysText.replace('d', ' days') });
-                        setContractValueInput(site.contractValue.toString());
-                        const initialDate = site.scheduledDate || site.dueDate || new Date().toISOString().split('T')[0];
-                        setJobDate(initialDate);
-                        const [y, m] = initialDate.split('-').map(Number);
-                        setCalendarView({ year: y, month: m - 1 });
-                        setStartTime('08:00');
-                        setDuration(2);
-                        setJobType('TR19 Grease Clean (Kitchen Extract)');
-                        setScheduleModalOpen(true);
-                      }}
-                      className="px-4 py-2 rounded-xl font-bold text-xs bg-[#0070ba] text-white hover:brightness-110 transition-all"
-                    >
-                      Schedule
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div
-                key={site.id}
-                className="bg-black rounded-xl border border-[#333333] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-              >
-                <div className="min-w-0 flex-1 order-first">
-                  <p className="text-lg font-black text-white break-words sm:truncate">{site.clientName}</p>
-                  <p className="text-xs text-gray-400 font-bold break-words sm:truncate mt-0.5">{site.siteName}</p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0 flex-wrap">
-                  <span className="text-amber-500 text-xs font-bold">{site.dueDateShort}</span>
-                  <span className="text-white font-bold">£{site.contractValue.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={`text-2xl font-black ${(site as { daysColor?: string }).daysColor || 'text-gray-400'}`}>
-                    {site.daysText}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setScheduleSite({ ...site, daysText: site.daysText.replace('d', ' days') });
-                      setContractValueInput(site.contractValue.toString());
-                      const initialDate = site.dueDate || new Date().toISOString().split('T')[0];
-                      setJobDate(initialDate);
-                      const [y, m] = initialDate.split('-').map(Number);
-                      setCalendarView({ year: y, month: m - 1 });
-                      setStartTime('08:00');
-                      setDuration(2);
-                      setJobType('TR19 Grease Clean (Kitchen Extract)');
-                      setScheduleModalOpen(true);
-                    }}
-                    className="px-5 py-2 rounded-xl font-bold text-xs bg-[#0070ba] text-white hover:brightness-110 transition-all"
-                  >
-                    Schedule
-                  </button>
-                </div>
-              </div>
-            )
-          ))}
-        </div>
-      </div>
-
       {/* Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-[#111111] p-6 rounded-2xl border border-[#333333] flex items-center gap-4">
@@ -477,15 +318,6 @@ const AdminDashboardHome: React.FC = () => {
           <div>
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Due Soon</p>
             <p className="text-2xl font-black text-white">{dueSoonJobsDisplay.length}</p>
-          </div>
-        </div>
-        <div className="bg-[#111111] p-6 rounded-2xl border border-[#333333] flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
-            <i className="fas fa-file-invoice-dollar text-xl"></i>
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">New Quotes</p>
-            <p className="text-2xl font-black text-white">{pendingQuotes.length}</p>
           </div>
         </div>
       </div>
@@ -760,25 +592,14 @@ const AdminDashboardHome: React.FC = () => {
           </span>
         </Link>
         <Link
-          to="/dashboard/surveys"
+          to="/dashboard/tr19"
           className="flex flex-col items-center justify-center p-6 rounded-2xl bg-[#111111] border border-[#333333] hover:border-[#F2C200] transition-all group"
         >
           <div className="w-12 h-12 rounded-xl bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200] mb-3 group-hover:bg-[#F2C200]/20 transition-colors">
             <i className="fas fa-clipboard-list text-xl"></i>
           </div>
           <span className="text-sm font-bold text-white group-hover:text-[#F2C200] transition-colors">
-            New Survey
-          </span>
-        </Link>
-        <Link
-          to="/dashboard/quotes"
-          className="flex flex-col items-center justify-center p-6 rounded-2xl bg-[#111111] border border-[#333333] hover:border-[#F2C200] transition-all group"
-        >
-          <div className="w-12 h-12 rounded-xl bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200] mb-3 group-hover:bg-[#F2C200]/20 transition-colors">
-            <i className="fas fa-file-invoice-dollar text-xl"></i>
-          </div>
-          <span className="text-sm font-bold text-white group-hover:text-[#F2C200] transition-colors">
-            New Quote
+            TR19
           </span>
         </Link>
         <button

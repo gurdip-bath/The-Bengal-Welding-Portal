@@ -7,7 +7,7 @@ import { MOCK_JOBS } from '../mockData';
 const CLEAR_JOBS_FOR_RENEWAL_TEST = false;
 // Set to true once to seed Renewal Dashboard with mock data, then set back to false
 const SEED_RENEWAL_MOCK_DATA = true;
-import { JobStatus, QuoteRequest, Job } from '../types';
+import { JobStatus, Job } from '../types';
 import { getAllUsers, registerEmployee } from '../lib/auth';
 import { listAllJobsForAdmin } from '../lib/jobs';
 import { AdminProvider } from '../contexts/AdminContext';
@@ -24,19 +24,15 @@ interface CustomerProfile {
 
 interface AdminWrapperProps {
   user: User;
-  quotes: QuoteRequest[];
-  onUpdateQuote: (id: string, price: number, notes: string) => void;
   onLogout: () => void;
 }
 
-const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote, onLogout }) => {
+const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [quoteToast, setQuoteToast] = useState(false);
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<CustomerProfile | null>(null);
   const [isEditCustomerModalOpen, setIsEditCustomerModalOpen] = useState(false);
   const [customerEditForm, setCustomerEditForm] = useState<CustomerProfile | null>(null);
-  const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
   const [editingWarrantyJob, setEditingWarrantyJob] = useState<Job | null>(null);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
@@ -58,8 +54,6 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
     frequency: 'Every 12 months',
   });
 
-  const [priceInput, setPriceInput] = useState('');
-  const [notesInput, setNotesInput] = useState('');
   const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
   const [employeeForm, setEmployeeForm] = useState<{ name: string; email: string; password: string; role: 'ENGINEER' | 'ADMIN' }>({ name: '', email: '', password: '', role: 'ENGINEER' });
   const [employeeError, setEmployeeError] = useState('');
@@ -117,13 +111,6 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
     };
     load();
   }, []);
-
-  useEffect(() => {
-    if (selectedQuote) {
-      setPriceInput(selectedQuote.price?.toString() || '');
-      setNotesInput(selectedQuote.adminNotes || '');
-    }
-  }, [selectedQuote]);
 
   const matchesSearch = (text?: string) =>
     !searchQuery || (text || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -319,12 +306,6 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
 
   const openNewCertificate = () => openAddJobModal();
 
-  const handleUpdateQuoteWithToast = (id: string, price: number, notes: string) => {
-    onUpdateQuote(id, price, notes);
-    setQuoteToast(true);
-    setTimeout(() => setQuoteToast(false), 3000);
-  };
-
   const getStatusStyles = (status: JobStatus) => {
     switch (status) {
       case 'PENDING':
@@ -343,8 +324,6 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
   const contextValue = {
     jobs,
     setJobs,
-    quotes,
-    onUpdateQuote: handleUpdateQuoteWithToast,
     searchQuery,
     setSearchQuery,
     uniqueCustomers,
@@ -353,8 +332,6 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
     copySignUpLink,
     updateStatus,
     handleDeleteJob,
-    selectedQuote,
-    setSelectedQuote,
     selectedCustomerDetail,
     setSelectedCustomerDetail,
     openAddEmployeeModal,
@@ -421,25 +398,6 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, quotes, onUpdateQuote
             onSave={handleAddEmployee}
             onClose={() => setIsAddEmployeeModalOpen(false)}
           />
-        )}
-
-        {selectedQuote && (
-          <QuoteModal
-            quote={selectedQuote}
-            priceInput={priceInput}
-            setPriceInput={setPriceInput}
-            notesInput={notesInput}
-            setNotesInput={setNotesInput}
-            onUpdateQuote={handleUpdateQuoteWithToast}
-            onClose={() => setSelectedQuote(null)}
-          />
-        )}
-
-        {quoteToast && (
-          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#F2C200] text-black px-6 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce z-[700]">
-            <i className="fas fa-check-circle text-black"></i>
-            <span className="text-sm font-bold uppercase tracking-tight">Quote sent to customer!</span>
-          </div>
         )}
 
         {editingWarrantyJob && (
@@ -1007,62 +965,6 @@ function EmployeeModal({ form, setForm, error, success, loading, onSave, onClose
               'Create Employee Account'
             )}
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function QuoteModal({ quote, priceInput, setPriceInput, notesInput, setNotesInput, onUpdateQuote, onClose }: any) {
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
-      <div className="bg-[#111111] border border-[#333333] rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
-        <div className="p-6 bg-black text-[#F2C200] border-b border-[#333333] flex justify-between items-center">
-          <h2 className="text-xl font-bold">Quote Detail</h2>
-          <button onClick={onClose} className="text-white hover:text-[#F2C200]">
-            <i className="fas fa-times"></i>
-          </button>
-        </div>
-        <div className="p-6 space-y-4">
-          <p className="text-gray-300">
-            Customer: <span className="font-bold">{quote.customerName}</span>
-          </p>
-          <p className="text-gray-300">
-            Item: <span className="font-bold">{quote.productName}</span>
-          </p>
-          {(quote.status === 'NEW' || quote.status === 'QUOTED') && (
-            <div className="space-y-4 pt-4">
-              <div>
-                <label className="block text-[10px] font-black text-gray-500 uppercase">Service Price (£)</label>
-                <input
-                  type="number"
-                  value={priceInput}
-                  onChange={(e) => setPriceInput(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full px-4 py-3 bg-black border border-[#333333] text-white rounded-xl focus:border-[#F2C200] outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-gray-500 uppercase">Admin Notes</label>
-                <textarea
-                  rows={3}
-                  value={notesInput}
-                  onChange={(e) => setNotesInput(e.target.value)}
-                  placeholder="Enter details for the customer..."
-                  className="w-full px-4 py-3 bg-black border border-[#333333] text-white rounded-xl focus:border-[#F2C200] outline-none resize-none"
-                />
-              </div>
-              <button
-                onClick={() => {
-                  onUpdateQuote(quote.id, parseFloat(priceInput) || 0, notesInput);
-                  onClose();
-                }}
-                className="w-full bg-[#F2C200] text-black py-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-[#F2C2001A]"
-              >
-                {quote.status === 'NEW' ? 'Send Quote to Customer' : 'Update Sent Quote'}
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>

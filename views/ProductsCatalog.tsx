@@ -1,29 +1,26 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MOCK_PRODUCTS } from '../mockData';
 import { Product, User } from '../types';
+import { BUSINESS_EMAIL, BUSINESS_PHONE } from '../constants';
 
 interface ProductsCatalogProps {
-  onRequestQuote: (product: Product, notes?: string, image?: string) => void;
   user?: User | null;
 }
 
-const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => {
+const ProductsCatalog: React.FC<ProductsCatalogProps> = () => {
   const navigate = useNavigate();
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const categories = ['All', ...new Set(MOCK_PRODUCTS.map(p => p.category))];
-  const filteredProducts = selectedCategory === 'All' 
-    ? MOCK_PRODUCTS 
-    : MOCK_PRODUCTS.filter(p => p.category === selectedCategory);
+  const [selectedCategory, setSelectedCategory] = React.useState('All');
+  const categories = ['All', ...new Set(MOCK_PRODUCTS.map((p) => p.category))];
+  const filteredProducts =
+    selectedCategory === 'All'
+      ? MOCK_PRODUCTS
+      : MOCK_PRODUCTS.filter((p) => p.category === selectedCategory);
 
-  const handleQuoteRequest = (product: Product) => {
-    onRequestQuote(product);
-    setToastMessage('Request sent! Confirmation email coming soon.');
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
-  };
+  const getQuoteEmailLink = (product: Product) =>
+    `mailto:${BUSINESS_EMAIL}?subject=${encodeURIComponent(`Quote request – ${product.name}`)}`;
+
+  const getQuotePhoneLink = () => `tel:${BUSINESS_PHONE.replace(/\s/g, '')}`;
 
   const handleRequestService = () => {
     navigate('/dashboard?openRequestForm=1');
@@ -33,7 +30,7 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => 
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-[#F2C200]">Equipment & Services</h1>
-        <p className="text-white opacity-80">Professional commercial kitchen solutions. Request a quote for pricing.</p>
+        <p className="text-white opacity-80">Professional commercial kitchen solutions. Contact us for a quote.</p>
       </header>
 
       {/* Category Filter */}
@@ -86,12 +83,22 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => 
                         Request a Service
                       </button>
                     ) : (
-                      <button 
-                        onClick={() => handleQuoteRequest(product)}
-                        className="bg-[#F2C200] text-black px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all"
-                      >
-                        Request Quote
-                      </button>
+                      <div className="flex gap-2">
+                        <a
+                          href={getQuoteEmailLink(product)}
+                          className="bg-[#F2C200] text-black px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition-all inline-flex items-center gap-1"
+                        >
+                          <i className="fas fa-envelope text-xs"></i>
+                          Email
+                        </a>
+                        <a
+                          href={getQuotePhoneLink()}
+                          className="bg-[#111111] border border-[#333333] text-[#F2C200] px-4 py-2 rounded-lg text-sm font-bold hover:border-[#F2C200] transition-all inline-flex items-center gap-1"
+                        >
+                          <i className="fas fa-phone text-xs"></i>
+                          Call
+                        </a>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -100,14 +107,6 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = ({ onRequestQuote }) => 
           </div>
         ))}
       </div>
-
-      {/* Success Toast */}
-      {showToast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#F2C200] text-black px-6 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce z-[120]">
-          <i className="fas fa-check-circle text-black"></i>
-          <span className="text-sm font-bold uppercase tracking-tight">{toastMessage}</span>
-        </div>
-      )}
 
       <div className="bg-[#111111] border border-[#333333] p-6 rounded-2xl flex items-start space-x-4">
         <div className="bg-black border border-[#F2C20033] p-3 rounded-xl text-[#F2C200] shadow-sm">

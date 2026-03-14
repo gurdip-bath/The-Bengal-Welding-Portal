@@ -85,7 +85,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           Sign In
         </h1>
         <p className="text-gray-400 text-sm mt-3 px-4">
-          Access your account to manage quotes, warranties, and equipment.
+          Access your account to manage warranties and equipment.
         </p>
       </div>
 

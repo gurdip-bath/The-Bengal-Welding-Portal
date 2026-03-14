@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
-import { Job, JobStatus, QuoteRequest } from '../types';
+import { Job, JobStatus } from '../types';
 
 interface CustomerProfile {
   id: string;
@@ -13,8 +13,6 @@ interface CustomerProfile {
 interface AdminContextValue {
   jobs: Job[];
   setJobs: React.Dispatch<React.SetStateAction<Job[]>>;
-  quotes: QuoteRequest[];
-  onUpdateQuote: (id: string, price: number, notes: string) => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   uniqueCustomers: CustomerProfile[];
@@ -23,8 +21,6 @@ interface AdminContextValue {
   copySignUpLink: (job: Job) => void;
   updateStatus: (id: string, status: JobStatus) => void;
   handleDeleteJob: (id: string) => void;
-  selectedQuote: QuoteRequest | null;
-  setSelectedQuote: (q: QuoteRequest | null) => void;
   selectedCustomerDetail: CustomerProfile | null;
   setSelectedCustomerDetail: (c: CustomerProfile | null) => void;
   openAddEmployeeModal: () => void;

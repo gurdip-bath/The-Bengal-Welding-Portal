@@ -69,7 +69,7 @@ export async function hasServiceRequestPayment(): Promise<boolean> {
   return data?.status === 'paid';
 }
 
-export async function createServiceRequestCheckout(): Promise<{ url: string; amount_pence: number }> {
+export async function createServiceRequestCheckout(serviceRequestId: string): Promise<{ url: string; amount_pence: number }> {
   const token = await getAccessToken();
   const res = await fetch(SERVICE_REQUEST_CHECKOUT_URL, {
     method: 'POST',
@@ -78,18 +78,12 @@ export async function createServiceRequestCheckout(): Promise<{ url: string; amo
       apikey: ANON_KEY,
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ access_token: token }),
+    body: JSON.stringify({ access_token: token, service_request_id: serviceRequestId }),
   });
   const data = await res.json().catch(() => ({}));
-  // #region agent log
-  if (!res.ok) {
-    console.error('[DEBUG] create-service-request-checkout:', { status: res.status, error: data?.error, gocardless_errors: data?.gocardless_errors, body: data });
-    fetch('http://127.0.0.1:7942/ingest/994fc98a-dbdd-4f05-82e2-3a64c140afa9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d1a7b0'},body:JSON.stringify({sessionId:'d1a7b0',location:'api.ts:createServiceRequestCheckout',message:'create-service-request-checkout error',data:{status:res.status,error:data?.error,gocardless_errors:data?.gocardless_errors,fullBody:data},timestamp:Date.now(),hypothesisId:'H500'})}).catch(()=>{});
-  }
-  // #endregion
   if (!res.ok) throw new Error(data.error || `Checkout failed (${res.status})`);
   if (!data.url) throw new Error(data.error || 'No checkout URL returned');
-  return { url: data.url, amount_pence: data.amount_pence ?? 15000 };
+  return { url: data.url, amount_pence: data.amount_pence ?? 0 };
 }
 
 export async function finalizeServiceRequestPayment(billingRequestId: string): Promise<{ ok: boolean }> {

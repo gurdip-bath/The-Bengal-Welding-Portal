@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext';
+import { listSiteSurveys, deleteSiteSurvey } from '../lib/siteSurveys';
+import type { SiteSurvey } from '../lib/siteSurveys';
 
 const SURVEYS_STORAGE_KEY = 'bengal_surveys';
 
@@ -21,6 +23,8 @@ const AdminSurveys: React.FC = () => {
   const { jobs } = useAdmin();
   const [searchQuery, setSearchQuery] = useState('');
   const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [siteSurveys, setSiteSurveys] = useState<SiteSurvey[]>([]);
+  const [siteSurveysLoading, setSiteSurveysLoading] = useState(true);
   const [quoteModal, setQuoteModal] = useState<{ survey: Survey; jobAmount: number } | null>(null);
   const [quotePrice, setQuotePrice] = useState('');
 
@@ -32,6 +36,13 @@ const AdminSurveys: React.FC = () => {
     } catch {
       setSurveys([]);
     }
+  }, []);
+
+  useEffect(() => {
+    listSiteSurveys()
+      .then(setSiteSurveys)
+      .catch(() => setSiteSurveys([]))
+      .finally(() => setSiteSurveysLoading(false));
   }, []);
 
   const submittedSurveys = surveys.filter((s) => s.status === 'submitted');
@@ -90,13 +101,22 @@ const AdminSurveys: React.FC = () => {
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">Surveys</h1>
-        <Link
-          to="/dashboard/jobs"
-          className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm bg-[#0070ba] text-white hover:brightness-110 transition-all"
-        >
-          <i className="fas fa-plus"></i>
-          New TR19 Survey
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/dashboard/jobs"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-[#111111] border border-[#333333] text-gray-300 hover:border-[#F2C200] hover:text-white transition-all"
+          >
+            <i className="fas fa-briefcase"></i>
+            TR19 from Job
+          </Link>
+          <Link
+            to="/dashboard/surveys/add"
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm bg-[#F2C200] text-black hover:brightness-110 transition-all shadow-lg shadow-[#F2C2001A]"
+          >
+            <i className="fas fa-plus"></i>
+            Add Site Survey
+          </Link>
+        </div>
       </div>
 
       <div className="relative w-full max-w-md">
@@ -110,12 +130,73 @@ const AdminSurveys: React.FC = () => {
         />
       </div>
 
+      {/* Site Surveys (Supabase) */}
       <div className="space-y-4">
+        <h2 className="text-sm font-black text-gray-400 uppercase tracking-wider">Site Surveys</h2>
+        {siteSurveysLoading ? (
+          <p className="text-sm text-gray-500">Loading...</p>
+        ) : siteSurveys.length === 0 ? (
+          <p className="text-sm text-gray-500">No site surveys yet. Click &quot;Add Site Survey&quot; to create one.</p>
+        ) : (
+          <div className="space-y-3">
+            {siteSurveys
+              .filter((s) => !searchQuery || 
+                s.site_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                s.contact_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                s.postcode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (s.contact_name || '').toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((s) => (
+                <div
+                  key={s.id}
+                  className="bg-[#111111] rounded-2xl border border-[#333333] p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="text-lg font-black text-white truncate">{s.site_name}</h3>
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase shrink-0 ${s.status === 'submitted' ? 'bg-green-900/30 text-green-400 border border-green-800/50' : 'bg-amber-900/30 text-amber-400 border border-amber-800/50'}`}>
+                        {s.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-400 mb-1">{s.contact_name} — {s.contact_phone}</p>
+                    <p className="text-xs text-gray-500">{s.address_line1}, {s.city} {s.postcode}</p>
+                    <p className="text-xs text-gray-500 mt-1">{s.survey_type} — {s.work_required.slice(0, 80)}{s.work_required.length > 80 ? '...' : ''}</p>
+                    <div className="flex items-center gap-4 mt-2">
+                      <Link
+                        to={`/dashboard/surveys/edit/${s.id}`}
+                        className="text-[#F2C200] hover:underline text-xs font-bold flex items-center gap-1"
+                      >
+                        <i className="fas fa-pencil-alt"></i> Edit
+                      </Link>
+                      <button
+                        onClick={async () => {
+                        if (!window.confirm('Delete this site survey?')) return;
+                        try {
+                          await deleteSiteSurvey(s.id);
+                          setSiteSurveys((prev) => prev.filter((x) => x.id !== s.id));
+                        } catch (e) {
+                          alert(e instanceof Error ? e.message : 'Failed to delete');
+                        }
+                      }}
+                        className="text-red-500 hover:text-red-400 text-xs font-bold flex items-center gap-1"
+                      >
+                        <i className="fas fa-trash-alt"></i> Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+
+      {/* TR19 Surveys (legacy localStorage) */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-black text-gray-400 uppercase tracking-wider">TR19 Surveys</h2>
         {submittedSurveys.length > 0 && (
-        <p className="text-xs text-gray-500 font-bold">
-          Go to <Link to="/dashboard/jobs" className="text-[#F2C200] hover:underline">Jobs</Link> to fill out the TR19 report and generate the certificate.
-        </p>
-      )}
+          <p className="text-xs text-gray-500 font-bold">
+            Go to <Link to="/dashboard/jobs" className="text-[#F2C200] hover:underline">Jobs</Link> to fill out the TR19 report and generate the certificate.
+          </p>
+        )}
 
       {filteredSurveys.length === 0 ? (
           <div className="bg-[#111111] rounded-2xl border border-[#333333] p-12 text-center">

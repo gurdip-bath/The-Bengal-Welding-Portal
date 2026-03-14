@@ -51,7 +51,7 @@ const AdminReportLog: React.FC = () => {
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">Report Log</h1>
+          <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">TR19 PCVR</h1>
           <p className="text-gray-500 text-sm font-bold mt-0.5">
             All generated TR19 reports — {logEntries.length} total
           </p>

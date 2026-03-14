@@ -312,7 +312,7 @@ const AdminCertificates: React.FC = () => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">Certificates</h1>
+            <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">TR19 Certificates</h1>
             <p className="text-gray-500 text-sm font-bold mt-0.5">
               {allCertificates.length} certificate{allCertificates.length !== 1 ? 's' : ''} generated
             </p>

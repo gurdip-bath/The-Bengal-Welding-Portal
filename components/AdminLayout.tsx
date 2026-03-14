@@ -5,8 +5,6 @@ import { User } from '../types';
 import { LOGO, BRAND_NAME } from '../constants';
 import { supabase } from '../lib/supabase';
 import { listServiceRequestsForAdmin } from '../lib/serviceRequests';
-import { useAdmin } from '../contexts/AdminContext';
-
 interface AdminLayoutProps {
   user: User;
   onLogout: () => void;
@@ -14,21 +12,20 @@ interface AdminLayoutProps {
 
 const SIDEBAR_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'fa-gauge-high' },
-  { path: '/dashboard/service-requests', label: 'Service Requests', icon: 'fa-clipboard-check' },
   { path: '/dashboard/jobs', label: 'Jobs', icon: 'fa-briefcase' },
   { path: '/dashboard/sites', label: 'Sites', icon: 'fa-building' },
-  { path: '/dashboard/certificates', label: 'Certificates', icon: 'fa-certificate' },
-  { path: '/dashboard/report-log', label: 'Report Log', icon: 'fa-list' },
-  { path: '/dashboard/surveys', label: 'Surveys', icon: 'fa-clipboard-list' },
-  { path: '/dashboard/quotes', label: 'Quotes', icon: 'fa-file-invoice-dollar' },
+  { path: '/dashboard/service-requests', label: 'Service Requests', icon: 'fa-clipboard-check' },
+  { path: '/dashboard/certificates', label: 'TR19 Certificates', icon: 'fa-certificate' },
+  { path: '/dashboard/report-log', label: 'TR19 PCVR', icon: 'fa-list' },
+  { path: '/dashboard/tr19', label: 'TR19', icon: 'fa-clipboard-list' },
+  { path: '/dashboard/complaints', label: 'Complaints', icon: 'fa-triangle-exclamation' },
+  { path: '/dashboard/warranty-claims', label: 'Warranty Claims', icon: 'fa-file-contract' },
   { path: '/dashboard/employees', label: 'Employees', icon: 'fa-user-shield' },
 ];
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
-  const { quotes } = useAdmin();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const pendingQuotesCount = quotes.filter((q) => q.status === 'NEW').length;
   const [profileOpen, setProfileOpen] = useState(false);
   const [pendingServiceRequestsCount, setPendingServiceRequestsCount] = useState(0);
   const [resetLoading, setResetLoading] = useState(false);
@@ -104,7 +101,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
           {SIDEBAR_ITEMS.map((item) => {
             const isActive = location.pathname === item.path;
             const showPendingBadge = item.path === '/dashboard/service-requests' && pendingServiceRequestsCount > 0;
-            const showQuotesBadge = item.path === '/dashboard/quotes' && pendingQuotesCount > 0;
             return (
               <Link
                 key={item.path}
@@ -123,11 +119,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
                     {pendingServiceRequestsCount}
                   </span>
                 )}
-                {showQuotesBadge && (
-                  <span className="ml-auto min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-black text-[10px] font-black flex items-center justify-center">
-                    {pendingQuotesCount}
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -136,7 +127,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
         <div className="p-4 border-t border-[#333333]">
           <div className="p-4 rounded-xl bg-black/50 border border-[#333333] mb-4">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Portal</p>
-            <p className="text-[10px] text-gray-600 mt-0.5">Manage sites, warranties & quotes.</p>
+            <p className="text-[10px] text-gray-600 mt-0.5">Manage sites and warranties.</p>
           </div>
           <button
             onClick={() => { onLogout(); setSidebarOpen(false); }}

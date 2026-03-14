@@ -53,6 +53,8 @@ export interface Job {
   accessInstructions?: string;
   equipmentRequired?: string;
   ppeRequired?: string;
+  isGasAppliance?: boolean;
+  garCode?: string;
 }
 
 export interface QuoteRequest {

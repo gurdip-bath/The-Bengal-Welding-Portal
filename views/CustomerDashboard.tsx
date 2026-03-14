@@ -3,25 +3,25 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { User, Job, QuoteRequest } from '../types';
+import { User, Job } from '../types';
 import { MOCK_JOBS } from '../mockData';
 import WarrantyCard from '../components/WarrantyCard';
 import { COLORS } from '../constants';
-import { createServiceRequest, hasServiceRequestPayment, createServiceRequestCheckout } from '../lib/api';
+import { createServiceRequest, createServiceRequestCheckout } from '../lib/api';
 import { listServiceRequestsForCustomer, type ServiceRequestRow } from '../lib/serviceRequests';
 import { listJobsForCustomer } from '../lib/jobs';
+import { createComplaint, listComplaintsForCustomer } from '../lib/complaints';
+import { getCustomerAccessDetails, upsertCustomerAccessDetails } from '../lib/customerAccessDetails';
 
 interface CustomerDashboardProps {
   user: User;
-  quotes?: QuoteRequest[];
-  onPayQuote?: (id: string) => void;
 }
 
 type TabType = 'ACTIVE' | 'HISTORY' | 'PROFILE';
 
 const SERVICE_REQUEST_BANNER_DISMISSED_KEY = 'bengal_sr_banner_dismissed';
 
-const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser, quotes = [], onPayQuote }) => {
+const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser }) => {
   const [activeTab, setActiveTab] = useState<TabType>('ACTIVE');
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [supabaseJobs, setSupabaseJobs] = useState<Job[]>([]);
@@ -57,10 +57,42 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
       return new Set();
     }
   });
-  const [hasPayment, setHasPayment] = useState<boolean | null>(null);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [showPaymentSuccessBanner, setShowPaymentSuccessBanner] = useState(false);
+  const [showComplaintForm, setShowComplaintForm] = useState(false);
+  const [complaints, setComplaints] = useState<Awaited<ReturnType<typeof listComplaintsForCustomer>>>([]);
+  const [complaintSubmitting, setComplaintSubmitting] = useState(false);
+  const [complaintError, setComplaintError] = useState<string | null>(null);
+  const [complaintSuccess, setComplaintSuccess] = useState(false);
+  const [accessDetails, setAccessDetails] = useState<{
+    accessDifficulty: '' | 'easy' | 'medium' | 'difficult';
+    applianceLocation: string;
+    accessInstructions: string;
+    equipmentRequired: string;
+    ppeRequired: string;
+  }>({
+    accessDifficulty: '',
+    applianceLocation: '',
+    accessInstructions: '',
+    equipmentRequired: '',
+    ppeRequired: '',
+  });
+  const [accessDetailsSaved, setAccessDetailsSaved] = useState(false);
+  const [isEditingAccessDetails, setIsEditingAccessDetails] = useState(false);
   const requestFormRef = React.useRef<HTMLDivElement>(null);
+
+  const [complaintForm, setComplaintForm] = useState({
+    customerName: '',
+    siteName: '',
+    siteAddress: '',
+    contactEmail: '',
+    contactPhone: '',
+    subject: '',
+    complaintType: '',
+    description: '',
+    dateOfIncident: '',
+    preferredContact: '',
+  });
 
   const dismissBanner = (id: string) => {
     setNotificationBannerDismissed((prev) => {
@@ -125,12 +157,24 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
   useEffect(() => {
     const load = async () => {
       try {
-        const [jobs, reqs] = await Promise.all([
+        const [jobs, reqs, comps, access] = await Promise.all([
           listJobsForCustomer(user.id),
           listServiceRequestsForCustomer(user.id),
+          listComplaintsForCustomer(user.id).catch(() => []),
+          getCustomerAccessDetails(user.id).catch(() => null),
         ]);
         setSupabaseJobs(jobs);
         setServiceRequests(reqs);
+        setComplaints(comps);
+        if (access) {
+          setAccessDetails({
+            accessDifficulty: (access.access_difficulty as '' | 'easy' | 'medium' | 'difficult') || '',
+            applianceLocation: access.appliance_location || '',
+            accessInstructions: access.access_instructions || '',
+            equipmentRequired: access.equipment_required || '',
+            ppeRequired: access.ppe_required || '',
+          });
+        }
       } catch {
         // ignore - Supabase may not be configured
       }
@@ -138,27 +182,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
     load();
   }, [user.id]);
 
-  useEffect(() => {
-    hasServiceRequestPayment().then(setHasPayment).catch(() => setHasPayment(false));
-  }, []);
 
   useEffect(() => {
     const hash = window.location.hash || '';
     const qIndex = hash.indexOf('?');
     const query = qIndex >= 0 ? hash.slice(qIndex) : '';
     const params = new URLSearchParams(query);
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    if (params.get('openRequestForm') === '1') {
-      const scrollToForm = () => requestFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      timeoutId = setTimeout(scrollToForm, 150);
-    }
     if (params.get('payment_success') === '1') {
       setShowPaymentSuccessBanner(true);
-      const openForm = params.get('openRequestForm') === '1' ? '?openRequestForm=1' : '';
-      window.history.replaceState(null, '', `${window.location.pathname}#/dashboard${openForm}`);
+      window.history.replaceState(null, '', `${window.location.pathname}#/dashboard`);
       setTimeout(() => setShowPaymentSuccessBanner(false), 5000);
     }
-    return () => { if (timeoutId) clearTimeout(timeoutId); };
   }, []);
 
   const localMyJobs = allJobs.filter((j) => j.customerId === user.id);
@@ -166,28 +200,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
   const myJobs = [...supabaseJobs, ...localMyJobs].filter((j) =>
     seenIds.has(j.id) ? false : (seenIds.add(j.id), true)
   );
-  const myQuotes = quotes.filter(q => q.customerId === user.id);
-
-  const historyItems = [
-    ...myJobs.map(j => ({
+  const historyItems = myJobs
+    .map((j) => ({
       id: j.id,
       title: j.title,
       type: 'Job',
       status: j.status,
       date: j.startDate,
       amount: j.amount,
-      isJob: true
-    })),
-    ...myQuotes.map(q => ({
-      id: q.id,
-      title: q.productName,
-      type: 'Quote',
-      status: q.status,
-      date: q.date,
-      amount: q.price || 0,
-      isJob: false
+      isJob: true,
     }))
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -248,7 +271,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
       {showPaymentSuccessBanner && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-green-500 text-black px-6 py-3 rounded-full shadow-2xl flex items-center space-x-2 z-[100] animate-in fade-in duration-300">
           <i className="fas fa-check-circle"></i>
-          <span className="text-sm font-bold uppercase tracking-tight">Direct Debit set up successfully. You can now request a service.</span>
+          <span className="text-sm font-bold uppercase tracking-tight">Payment successful. Your service has been confirmed.</span>
         </div>
       )}
 
@@ -287,7 +310,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                 : 'text-gray-500 hover:text-white'
             }`}
           >
-            <i className="fas fa-user-gear mr-2"></i>Profile
+            <i className="fas fa-user-gear mr-2"></i>My Account
           </button>
         </div>
       </header>
@@ -381,6 +404,34 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                     {r.admin_notes && (
                       <p className="text-xs text-gray-400 mt-2 italic">Admin notes: {r.admin_notes}</p>
                     )}
+                    {r.status === 'approved' && !r.paid_at && (() => {
+                      const pt = r.payment_type ?? 'one_off';
+                      const oneOff = (r.approved_amount_pence ?? 0) / 100;
+                      const dd = (r.dd_amount_pence ?? 0) / 100;
+                      const label = pt === 'dd_only'
+                        ? `Set up Direct Debit £${dd.toFixed(2)}/mo`
+                        : pt === 'both'
+                        ? `Pay £${oneOff.toFixed(2)} & set up DD £${dd.toFixed(2)}/mo`
+                        : `Pay £${oneOff.toFixed(2)}`;
+                      return (
+                        <button
+                          onClick={async () => {
+                            setCheckoutLoading(r.id);
+                            try {
+                              const { url } = await createServiceRequestCheckout(r.id);
+                              window.location.href = url;
+                            } catch (e) {
+                              setServiceErrorMessage(e instanceof Error ? e.message : 'Failed to start payment.');
+                              setCheckoutLoading(null);
+                            }
+                          }}
+                          disabled={!!checkoutLoading}
+                          className="mt-3 px-4 py-2 rounded-lg bg-[#F2C200] text-black font-bold text-sm hover:brightness-110 disabled:opacity-60"
+                        >
+                          {checkoutLoading === r.id ? 'Redirecting…' : label}
+                        </button>
+                      );
+                    })()}
                     {r.status === 'rejected' && (
                       <button
                         onClick={() => startAmend(r)}
@@ -413,63 +464,27 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
               </div>
               <p className="text-gray-400 text-sm font-medium">Pending Payments</p>
               <p className="text-2xl font-bold text-white">
-                £{(myJobs.filter(j => j.paymentStatus !== 'PAID').reduce((acc, curr) => acc + curr.amount, 0) + 
-                   myQuotes.filter(q => q.status === 'QUOTED' || q.status === 'PENDING_PAYMENT').reduce((acc, curr) => acc + (curr.price || 0), 0)).toLocaleString()}
+                £{myJobs.filter((j) => j.paymentStatus !== 'PAID').reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
               </p>
             </div>
           </div>
 
-          {myQuotes.some(q => q.status === 'QUOTED' || q.status === 'PENDING_PAYMENT') && (
-            <section className="animate-in slide-in-from-left-4">
-              <h2 className="text-lg font-bold text-[#F2C200] mb-4">Pending Quotes</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {myQuotes.filter(q => q.status === 'QUOTED' || q.status === 'PENDING_PAYMENT').map(quote => (
-                  <div key={quote.id} className="bg-[#111111] p-5 rounded-2xl border border-[#333333] shadow-lg flex flex-col">
-                    <div className="flex items-start space-x-4 mb-4">
-                      <img src={quote.productImage} alt="" className="w-16 h-16 rounded-xl object-contain bg-black border border-[#333333] p-2" />
-                      <div>
-                        <h3 className="font-bold text-white">{quote.productName}</h3>
-                        <p className="text-2xl font-black mt-1 text-[#F2C200]">£{quote.price?.toLocaleString()}</p>
-                        {quote.status === 'PENDING_PAYMENT' && (
-                          <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#FFF9E6] text-[#B28900]">
-                            Payment in progress
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="bg-black/50 border border-[#333333] p-3 rounded-xl mb-4">
-                      <p className="text-xs font-bold text-[#F2C200] uppercase mb-1">Service Notes:</p>
-                      <p className="text-sm text-gray-300 italic">{quote.adminNotes || "No notes provided."}</p>
-                    </div>
-                    <button 
-                      onClick={() => onPayQuote?.(quote.id)}
-                      className="w-full bg-[#F2C200] text-black py-3 rounded-xl font-bold flex items-center justify-center space-x-2 hover:brightness-110 transition-all shadow-md"
-                    >
-                      <i className="fab fa-paypal"></i>
-                      <span>{quote.status === 'PENDING_PAYMENT' ? 'Complete Payment' : 'Accept & Pay'} £{quote.price?.toLocaleString()}</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           <section>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-[#F2C200]">My Service Orders</h2>
+              <h2 className="text-lg font-bold text-[#F2C200]">My Products</h2>
               <Link to="/products" className="text-sm font-semibold hover:text-white transition-colors" style={{ color: COLORS.primary }}>
                 View Equipment Catalog
               </Link>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {myJobs.filter((j) => j.status !== 'COMPLETED').length === 0 ? (
+              {myJobs.length === 0 ? (
                 <div className="p-8 bg-[#111111] rounded-xl border border-dashed border-[#333333] text-center text-gray-500">
-                  No active service orders found for your account ID.
+                  No products found for your account. Browse the Equipment Catalog to get started.
                 </div>
               ) : (
                 <>
-                  {myJobs.filter((j) => j.status !== 'COMPLETED').map(job => (
+                  {myJobs.map(job => (
                     <Link 
                       key={job.id} 
                       to={`/jobs/${job.id}`}
@@ -482,8 +497,18 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                           <i className={`fas ${job.status === 'COMPLETED' ? 'fa-check' : 'fa-spinner fa-spin'}`}></i>
                         </div>
                         <div>
-                          <h3 className="font-bold text-white group-hover:text-[#F2C200] transition-colors">{job.title}</h3>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-white group-hover:text-[#F2C200] transition-colors">{job.title}</h3>
+                            {job.isGasAppliance && job.garCode && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#333333] text-[#F2C200]">GAR: {job.garCode}</span>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-400 line-clamp-1">{job.description}</p>
+                          {(job.startDate || job.warrantyEndDate) && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Warranty: {job.startDate ? new Date(job.startDate).toLocaleDateString() : '—'} – {job.warrantyEndDate ? new Date(job.warrantyEndDate).toLocaleDateString() : '—'}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="text-right hidden sm:block">
@@ -502,47 +527,155 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
             </div>
           </section>
 
-          <section ref={requestFormRef} className="bg-[#111111] border border-[#333333] p-6 rounded-2xl text-white">
-            <h3 className="text-xl font-bold text-[#F2C200] mb-4">Request a Service</h3>
-            {hasPayment === null && (
-              <p className="text-gray-400 text-sm">Checking payment status…</p>
-            )}
-            {hasPayment === false && (
-              <div className="space-y-4">
-                <p className="text-gray-400 text-sm">
-                  To request a service, set up Direct Debit and pay the initial service fee. Future services can be charged via Direct Debit.
-                </p>
-                {serviceErrorMessage && (
-                  <div className="bg-red-500/20 border border-red-500/40 text-red-400 px-4 py-3 rounded-xl text-sm">
-                    {serviceErrorMessage}
-                  </div>
-                )}
+          {/* Complaints Section */}
+          <section className="bg-[#111111] rounded-xl border border-[#333333] overflow-hidden">
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-[#F2C200] mb-2">Complaints</h3>
+              <p className="text-gray-400 text-sm mb-4">Do you want to raise a complaint? Our team will respond as soon as possible.</p>
+              {!showComplaintForm ? (
                 <button
-                  type="button"
-                  disabled={checkoutLoading}
-                  onClick={async () => {
-                    setServiceErrorMessage(null);
+                  onClick={() => {
+                    setShowComplaintForm(true);
+                    setComplaintForm({
+                      customerName: user.name,
+                      siteName: '',
+                      siteAddress: user.address || '',
+                      contactEmail: user.email,
+                      contactPhone: user.phone || '',
+                      subject: '',
+                      complaintType: '',
+                      description: '',
+                      dateOfIncident: '',
+                      preferredContact: '',
+                    });
+                  }}
+                  className="px-6 py-3 rounded-xl font-bold bg-[#F2C200] text-black hover:brightness-110 transition-all"
+                >
+                  Raise a Complaint
+                </button>
+              ) : (
+                <form
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setComplaintError(null);
+                    setComplaintSuccess(false);
+                    if (!complaintForm.customerName || !complaintForm.contactEmail || !complaintForm.description) {
+                      setComplaintError('Please fill in customer name, contact email, and description.');
+                      return;
+                    }
                     try {
-                      setCheckoutLoading(true);
-                      const { url } = await createServiceRequestCheckout();
-                      window.location.href = url;
-                    } catch (e) {
-                      setServiceErrorMessage(e instanceof Error ? e.message : 'Failed to start checkout.');
+                      setComplaintSubmitting(true);
+                      await createComplaint({
+                        customerName: complaintForm.customerName,
+                        siteName: complaintForm.siteName || undefined,
+                        siteAddress: complaintForm.siteAddress || undefined,
+                        contactEmail: complaintForm.contactEmail,
+                        contactPhone: complaintForm.contactPhone || undefined,
+                        subject: complaintForm.subject || undefined,
+                        complaintType: complaintForm.complaintType || undefined,
+                        description: complaintForm.description,
+                        dateOfIncident: complaintForm.dateOfIncident || undefined,
+                        preferredContact: complaintForm.preferredContact || undefined,
+                      });
+                      setComplaintSuccess(true);
+                      setComplaintForm({ customerName: '', siteName: '', siteAddress: '', contactEmail: '', contactPhone: '', subject: '', complaintType: '', description: '', dateOfIncident: '', preferredContact: '' });
+                      setShowComplaintForm(false);
+                      const comps = await listComplaintsForCustomer(user.id);
+                      setComplaints(comps);
+                    } catch (err) {
+                      setComplaintError(err instanceof Error ? err.message : 'Failed to submit complaint.');
                     } finally {
-                      setCheckoutLoading(false);
+                      setComplaintSubmitting(false);
                     }
                   }}
-                  className="px-6 py-3 rounded-xl font-bold bg-[#F2C200] text-black hover:brightness-110 disabled:opacity-60 transition-all"
                 >
-                  {checkoutLoading ? 'Redirecting…' : 'Set up Direct Debit & pay £150'}
-                </button>
+                  <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Customer Name *</label>
+                    <input type="text" value={complaintForm.customerName} onChange={(e) => setComplaintForm({ ...complaintForm, customerName: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" required />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Site Name</label>
+                    <input type="text" value={complaintForm.siteName} onChange={(e) => setComplaintForm({ ...complaintForm, siteName: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" />
+                  </div>
+                  <div className="flex flex-col md:col-span-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Site Address</label>
+                    <input type="text" value={complaintForm.siteAddress} onChange={(e) => setComplaintForm({ ...complaintForm, siteAddress: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Contact Email *</label>
+                    <input type="email" value={complaintForm.contactEmail} onChange={(e) => setComplaintForm({ ...complaintForm, contactEmail: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" required />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Contact Phone</label>
+                    <input type="tel" value={complaintForm.contactPhone} onChange={(e) => setComplaintForm({ ...complaintForm, contactPhone: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Subject</label>
+                    <input type="text" value={complaintForm.subject} onChange={(e) => setComplaintForm({ ...complaintForm, subject: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Complaint Type</label>
+                    <select value={complaintForm.complaintType} onChange={(e) => setComplaintForm({ ...complaintForm, complaintType: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]">
+                      <option value="">Select...</option>
+                      <option value="service">Service</option>
+                      <option value="quality">Quality</option>
+                      <option value="delivery">Delivery</option>
+                      <option value="billing">Billing</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col md:col-span-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Description *</label>
+                    <textarea rows={4} value={complaintForm.description} onChange={(e) => setComplaintForm({ ...complaintForm, description: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200] resize-none" required placeholder="Describe your complaint in detail..." />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Date of Incident</label>
+                    <DatePicker selected={complaintForm.dateOfIncident ? new Date(complaintForm.dateOfIncident) : null} onChange={(d) => setComplaintForm({ ...complaintForm, dateOfIncident: d ? d.toISOString().split('T')[0] : '' })} dateFormat="dd/MM/yyyy" placeholderText="Select date" className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" calendarClassName="react-datepicker-dark" />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-1">Preferred Contact Method</label>
+                    <select value={complaintForm.preferredContact} onChange={(e) => setComplaintForm({ ...complaintForm, preferredContact: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]">
+                      <option value="">Select...</option>
+                      <option value="email">Email</option>
+                      <option value="phone">Phone</option>
+                      <option value="either">Either</option>
+                    </select>
+                  </div>
+                  {complaintError && <p className="text-xs text-red-400 md:col-span-2">{complaintError}</p>}
+                  {complaintSuccess && <p className="text-xs text-green-400 md:col-span-2">Complaint submitted successfully. We will be in touch shortly.</p>}
+                  <div className="md:col-span-2 flex gap-3">
+                    <button type="submit" disabled={complaintSubmitting} className="px-6 py-3 rounded-xl font-bold bg-[#F2C200] text-black hover:brightness-110 disabled:opacity-60">{complaintSubmitting ? 'Submitting...' : 'Submit Complaint'}</button>
+                    <button type="button" onClick={() => setShowComplaintForm(false)} className="px-6 py-3 rounded-xl font-bold bg-[#333333] text-white hover:bg-[#444]">Cancel</button>
+                  </div>
+                </form>
+              )}
+              {complaints.length > 0 && !showComplaintForm && (
+                <div className="mt-6 pt-6 border-t border-[#333333]">
+                  <h4 className="text-sm font-bold text-gray-400 uppercase mb-2">Your Complaints</h4>
+                  <div className="space-y-2">
+                    {complaints.slice(0, 5).map((c) => (
+                      <div key={c.id} className="flex justify-between items-center p-3 rounded-lg bg-black/40 border border-[#333333]">
+                        <span className="text-sm text-white truncate">{c.subject || c.description?.slice(0, 50) || 'Complaint'}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${c.status === 'resolved' || c.status === 'closed' ? 'bg-green-900/30 text-green-400' : 'bg-[#FFF9E6]/20 text-[#B28900]'}`}>{c.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section ref={requestFormRef} className="bg-[#111111] border border-[#333333] p-6 rounded-2xl text-white">
+            <h3 className="text-xl font-bold text-[#F2C200] mb-4">Request a Service</h3>
+            <p className="text-gray-400 text-sm mb-6">
+              Fill in the details below and submit. Our team will review, approve with a quote, and you can then pay via Direct Debit to confirm.
+            </p>
+            {serviceErrorMessage && (
+              <div className="mb-4 bg-red-500/20 border border-red-500/40 text-red-400 px-4 py-3 rounded-xl text-sm">
+                {serviceErrorMessage}
               </div>
             )}
-            {hasPayment === true && (
-              <>
-            <p className="text-gray-400 text-sm mb-6">
-              Fill in the details below and our team will be in touch to arrange your service.
-            </p>
             <form
               className="grid grid-cols-1 md:grid-cols-2 gap-4"
               onSubmit={async (e) => {
@@ -743,8 +876,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                 </button>
               </div>
             </form>
-              </>
-            )}
           </section>
         </>
       )}
@@ -800,41 +931,134 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
       )}
 
       {activeTab === 'PROFILE' && (
-        <section className="animate-in slide-in-from-bottom-4">
+        <section className="animate-in slide-in-from-bottom-4 space-y-8">
           <div className="bg-[#111111] rounded-3xl border border-[#333333] overflow-hidden shadow-2xl">
             <div className="p-8 border-b border-[#333333] flex justify-between items-center bg-black/40">
               <div>
-                <h2 className="text-xl font-bold text-[#F2C200]">Account Details</h2>
-                <p className="text-gray-500 text-sm">Review and manage your contact information.</p>
+                <h2 className="text-xl font-bold text-[#F2C200]">My Account</h2>
+                <p className="text-gray-500 text-sm">Business details and access information.</p>
               </div>
               {!isEditingProfile && (
                 <button 
                   onClick={openEditProfile}
                   className="bg-[#F2C200] text-black px-6 py-2 rounded-xl font-bold text-sm hover:brightness-110 transition-all"
                 >
-                  <i className="fas fa-pen-to-square mr-2"></i>Edit Profile
+                  <i className="fas fa-pen-to-square mr-2"></i>Edit Details
                 </button>
               )}
             </div>
             
             <div className="p-8 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Full Name / Business</label>
-                  <p className="text-lg font-bold text-white">{user.name}</p>
+              <div>
+                <h3 className="text-sm font-bold text-[#F2C200] uppercase tracking-wider mb-4">Business Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Restaurant / Business Name</label>
+                    <p className="text-lg font-bold text-white">{user.name}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Business Number</label>
+                    <p className="text-lg font-bold text-white">{user.phone || 'Not provided'}</p>
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Email Address</label>
+                    <p className="text-lg font-bold text-white">{user.email}</p>
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Service Address</label>
+                    <p className="text-lg font-bold text-white leading-relaxed">{user.address || 'Not provided'}</p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Email Address</label>
-                  <p className="text-lg font-bold text-white">{user.email}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Phone</label>
-                  <p className="text-lg font-bold text-white">{user.phone || 'Not provided'}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Service Address</label>
-                  <p className="text-lg font-bold text-white leading-relaxed">{user.address || 'Not provided'}</p>
-                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-[#F2C200] uppercase tracking-wider mb-4">Access Details (optional)</h3>
+                <p className="text-gray-500 text-xs mb-4">Provide site access details for engineers. Can be used as defaults for service requests.</p>
+                {!isEditingAccessDetails ? (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Access Difficulty</label>
+                        <p className="text-white font-medium">{accessDetails.accessDifficulty || '—'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Appliance Location</label>
+                        <p className="text-white font-medium">{accessDetails.applianceLocation || '—'}</p>
+                      </div>
+                      <div className="space-y-1 md:col-span-2">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Access Instructions</label>
+                        <p className="text-white font-medium leading-relaxed">{accessDetails.accessInstructions || '—'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Equipment Required</label>
+                        <p className="text-white font-medium">{accessDetails.equipmentRequired || '—'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">PPE Required</label>
+                        <p className="text-white font-medium">{accessDetails.ppeRequired || '—'}</p>
+                      </div>
+                    </div>
+                    {accessDetailsSaved && <p className="text-xs text-green-400 mt-2">Access details saved.</p>}
+                    <button
+                      onClick={() => setIsEditingAccessDetails(true)}
+                      className="mt-4 px-4 py-2 rounded-lg font-bold text-sm bg-[#333333] text-white hover:bg-[#444] transition-all"
+                    >
+                      Edit Access Details
+                    </button>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Access Difficulty</label>
+                      <select value={accessDetails.accessDifficulty} onChange={(e) => setAccessDetails({ ...accessDetails, accessDifficulty: e.target.value as '' | 'easy' | 'medium' | 'difficult' })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]">
+                        <option value="">Select...</option>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="difficult">Difficult</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Appliance Location</label>
+                      <input type="text" value={accessDetails.applianceLocation} onChange={(e) => setAccessDetails({ ...accessDetails, applianceLocation: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" placeholder="e.g. Main kitchen" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Access Instructions</label>
+                      <textarea rows={2} value={accessDetails.accessInstructions} onChange={(e) => setAccessDetails({ ...accessDetails, accessInstructions: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200] resize-none" placeholder="How to access the site / appliance" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Equipment Required</label>
+                      <input type="text" value={accessDetails.equipmentRequired} onChange={(e) => setAccessDetails({ ...accessDetails, equipmentRequired: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" placeholder="e.g. Ladder, scaffolding" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">PPE Required</label>
+                      <input type="text" value={accessDetails.ppeRequired} onChange={(e) => setAccessDetails({ ...accessDetails, ppeRequired: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]" placeholder="e.g. Gloves, safety glasses" />
+                    </div>
+                    <div className="md:col-span-2 flex gap-3">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await upsertCustomerAccessDetails(user.id, {
+                              accessDifficulty: accessDetails.accessDifficulty || null,
+                              applianceLocation: accessDetails.applianceLocation || null,
+                              accessInstructions: accessDetails.accessInstructions || null,
+                              equipmentRequired: accessDetails.equipmentRequired || null,
+                              ppeRequired: accessDetails.ppeRequired || null,
+                            });
+                            setAccessDetailsSaved(true);
+                            setIsEditingAccessDetails(false);
+                            setTimeout(() => setAccessDetailsSaved(false), 3000);
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                        className="px-4 py-2 rounded-lg font-bold text-sm bg-[#F2C200] text-black hover:brightness-110 transition-all"
+                      >
+                        Save Access Details
+                      </button>
+                      <button onClick={() => setIsEditingAccessDetails(false)} className="px-4 py-2 rounded-lg font-bold text-sm bg-[#333333] text-white hover:bg-[#444]">Cancel</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -853,7 +1077,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
             </div>
             <div className="p-8 space-y-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Business / Full Name</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Restaurant / Business Name</label>
                 <input 
                   type="text" 
                   value={profileForm.name || ''} 
@@ -871,7 +1095,7 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Phone Number</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Business Number</label>
                 <input 
                   type="tel" 
                   value={profileForm.phone || ''} 

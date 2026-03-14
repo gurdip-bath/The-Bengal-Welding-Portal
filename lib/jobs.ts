@@ -32,7 +32,20 @@ function rowToJob(r: Record<string, unknown>): Job {
     accessInstructions: (r.access_instructions as string) || undefined,
     equipmentRequired: (r.equipment_required as string) || undefined,
     ppeRequired: (r.ppe_required as string) || undefined,
+    isGasAppliance: r.is_gas_appliance === true,
+    garCode: (r.gar_code as string) || undefined,
   };
+}
+
+export async function getJobById(id: string): Promise<Job | null> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return rowToJob(data as Record<string, unknown>);
 }
 
 export async function listJobsForCustomer(customerId: string): Promise<Job[]> {
@@ -116,4 +129,28 @@ export async function createJobFromServiceRequest(
 
   if (error) throw new Error(error.message || 'Failed to create job');
   return rowToJob(data as Record<string, unknown>);
+}
+
+export async function updateJob(id: string, updates: Partial<{
+  title: string;
+  description: string;
+  status: string;
+  start_date: string;
+  warranty_end_date: string;
+  payment_status: string;
+  amount: number;
+  is_gas_appliance: boolean;
+  gar_code: string | null;
+  access_difficulty: string | null;
+  appliance_location: string | null;
+  access_instructions: string | null;
+  equipment_required: string | null;
+  ppe_required: string | null;
+}>): Promise<void> {
+  const { error } = await supabase
+    .from('jobs')
+    .update(updates)
+    .eq('id', id);
+
+  if (error) throw new Error(error.message || 'Failed to update job');
 }

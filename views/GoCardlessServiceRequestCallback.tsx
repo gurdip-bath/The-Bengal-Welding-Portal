@@ -18,7 +18,7 @@ const GoCardlessServiceRequestCallback: React.FC = () => {
       try {
         await finalizeServiceRequestPayment(brq);
         if (cancelled) return;
-        window.location.href = `${window.location.origin}${window.location.pathname}#/dashboard?openRequestForm=1&payment_success=1`;
+        window.location.href = `${window.location.origin}${window.location.pathname}#/dashboard?payment_success=1`;
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'Failed to complete payment setup.');

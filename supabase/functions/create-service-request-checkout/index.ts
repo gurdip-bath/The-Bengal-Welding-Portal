@@ -6,7 +6,7 @@ const GC_ACCESS_TOKEN = Deno.env.get("GOCARDLESS_ACCESS_TOKEN") ?? "";
 const GC_ENV = (Deno.env.get("GOCARDLESS_ENV") ?? "sandbox").toLowerCase();
 const GC_BASE_URL =
   GC_ENV === "live" ? "https://api.gocardless.com" : "https://api-sandbox.gocardless.com";
-const INITIAL_SERVICE_FEE_PENCE = parseInt(Deno.env.get("INITIAL_SERVICE_FEE_PENCE") ?? "15000", 10) || 15000;
+const FALLBACK_AMOUNT_PENCE = parseInt(Deno.env.get("INITIAL_SERVICE_FEE_PENCE") ?? "15000", 10) || 15000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,32 +75,83 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: existing } = await admin.from("service_request_payments").select("status").eq("user_id", user.id).maybeSingle();
-    if (existing?.status === "paid") {
-      return new Response(JSON.stringify({ error: "You have already completed payment setup" }), {
+    const serviceRequestId = body?.service_request_id;
+    if (!serviceRequestId || typeof serviceRequestId !== "string") {
+      return new Response(JSON.stringify({ error: "Missing service_request_id" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const { data: sr, error: srError } = await admin
+      .from("service_requests")
+      .select("id, user_id, status, approved_amount_pence, paid_at, payment_type, dd_amount_pence, dd_day_of_month")
+      .eq("id", serviceRequestId)
+      .maybeSingle();
+
+    if (srError || !sr) {
+      return new Response(JSON.stringify({ error: "Service request not found" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (sr.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: "Service request does not belong to you" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (sr.status !== "approved") {
+      return new Response(JSON.stringify({ error: "Service request must be approved before payment" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (sr.paid_at) {
+      return new Response(JSON.stringify({ error: "This service request has already been paid" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const pt = (sr.payment_type ?? "one_off") as "one_off" | "dd_only" | "both";
+    const hasOneOff = pt === "one_off" || pt === "both";
+    const hasDd = pt === "dd_only" || pt === "both";
+
+    const amountPence = hasOneOff
+      ? ((sr.approved_amount_pence != null && sr.approved_amount_pence >= 100)
+          ? sr.approved_amount_pence
+          : FALLBACK_AMOUNT_PENCE)
+      : 0;
+
+    const brBody: Record<string, unknown> = {
+      mandate_request: {
+        scheme: "bacs",
+        currency: "GBP",
+        description: "Bengal Welding service requests",
+        metadata: { supabase_user_id: user.id, service_request_id: serviceRequestId },
+      },
+      metadata: {
+        supabase_user_id: user.id,
+        type: "service_request",
+        service_request_id: serviceRequestId,
+        payment_type: pt,
+        dd_amount_pence: hasDd ? (sr.dd_amount_pence ?? 0) : null,
+        dd_day_of_month: hasDd ? (sr.dd_day_of_month ?? 15) : null,
+      },
+    };
+
+    if (hasOneOff && amountPence >= 100) {
+      brBody.payment_request = {
+        amount: amountPence,
+        currency: "GBP",
+        description: "Service request payment",
+      };
+    }
+
     const billingReq = await gcRequest("/billing_requests", {
       method: "POST",
-      body: JSON.stringify({
-        billing_requests: {
-          mandate_request: {
-            scheme: "bacs",
-            currency: "GBP",
-            description: "Bengal Welding service requests",
-            metadata: { supabase_user_id: user.id },
-          },
-          payment_request: {
-            amount: INITIAL_SERVICE_FEE_PENCE,
-            currency: "GBP",
-            description: "Initial service fee",
-          },
-          metadata: { supabase_user_id: user.id, type: "service_request" },
-        },
-      }),
+      body: JSON.stringify({ billing_requests: brBody }),
     });
 
     const billingRequestId = billingReq?.billing_requests?.id;
@@ -131,9 +182,17 @@ Deno.serve(async (req) => {
       // ignore
     }
 
-    return new Response(JSON.stringify({ url, billing_request_id: billingRequestId, amount_pence: INITIAL_SERVICE_FEE_PENCE }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        url,
+        billing_request_id: billingRequestId,
+        amount_pence: amountPence,
+        payment_type: pt,
+        has_one_off: hasOneOff,
+        has_dd: hasDd,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (err) {
     const e = err as Record<string, unknown>;
     const extra: Record<string, unknown> = {};

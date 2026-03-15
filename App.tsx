@@ -88,12 +88,17 @@ const App: React.FC = () => {
         <main className={`flex-grow w-full max-w-full overflow-x-hidden ${user?.role === 'ADMIN' || user?.role === 'ENGINEER' ? '' : 'container mx-auto px-4 py-6'}`}>
           <Routes>
             {!user ? (
+              // Invite link: hash has tokens but no #/set-password path → show SetPassword so initAuth can run
+              (typeof window !== 'undefined' && window.location.hash.includes('access_token=') && window.location.hash.includes('type=invite')) ? (
+                <Route path="*" element={<SetPassword />} />
+              ) : (
               <>
                 <Route path="/login" element={<Login onLogin={handleLogin} />} />
                 <Route path="/signup" element={<SignUp onLogin={handleLogin} />} />
                 <Route path="/set-password" element={<SetPassword />} />
                 <Route path="*" element={<Navigate to="/login" />} />
               </>
+              )
             ) : (
               <>
                 {(user.role === 'ADMIN' || user.role === 'ENGINEER') ? (

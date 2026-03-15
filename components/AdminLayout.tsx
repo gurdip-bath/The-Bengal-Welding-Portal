@@ -12,6 +12,9 @@ interface AdminLayoutProps {
 
 const SIDEBAR_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'fa-gauge-high' },
+  { path: '/dashboard/add-customer', label: 'Add Customer', icon: 'fa-user-plus' },
+  { path: '/dashboard/leads', label: 'Leads', icon: 'fa-envelope-circle-check' },
+  { path: '/dashboard/stock-requests', label: 'Stock Requests', icon: 'fa-boxes-stacked' },
   { path: '/dashboard/jobs', label: 'Jobs', icon: 'fa-briefcase' },
   { path: '/dashboard/sites', label: 'Sites', icon: 'fa-building' },
   { path: '/dashboard/service-requests', label: 'Service Requests', icon: 'fa-clipboard-check' },
@@ -172,7 +175,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
 
         {/* Page content */}
         <main className="flex-1 p-4 sm:p-6 overflow-auto w-full max-w-full overflow-x-hidden">
-          <Outlet />
+          <Outlet context={{ user }} />
         </main>
         {profileOpen && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">

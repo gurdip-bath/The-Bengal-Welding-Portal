@@ -20,8 +20,28 @@ const AdminServiceRequests: React.FC = () => {
   const [paymentType, setPaymentType] = useState<PaymentType>('both');
   const [oneOffAmountPence, setOneOffAmountPence] = useState<number>(15000);
   const [ddAmountPence, setDdAmountPence] = useState<number>(5000);
+  const [oneOffDisplay, setOneOffDisplay] = useState<string>('150.00');
+  const [ddDisplay, setDdDisplay] = useState<string>('50.00');
   const [ddDayOfMonth, setDdDayOfMonth] = useState<number>(15);
   const [submitting, setSubmitting] = useState(false);
+
+  const parseDisplayToPence = (s: string): number => {
+    const n = parseFloat(String(s).trim().replace(/,/g, ''));
+    if (Number.isNaN(n) || n < 0) return 0;
+    return Math.round(n * 100);
+  };
+
+  const syncOneOffFromDisplay = () => {
+    const pence = Math.max(100, parseDisplayToPence(oneOffDisplay));
+    setOneOffAmountPence(pence);
+    setOneOffDisplay((pence / 100).toFixed(2));
+  };
+
+  const syncDdFromDisplay = () => {
+    const pence = Math.max(100, parseDisplayToPence(ddDisplay));
+    setDdAmountPence(pence);
+    setDdDisplay((pence / 100).toFixed(2));
+  };
 
   const fetch = async () => {
     setLoading(true);
@@ -46,6 +66,8 @@ const AdminServiceRequests: React.FC = () => {
 
   const handleApprove = async () => {
     if (!selected || !notes.trim()) return;
+    syncOneOffFromDisplay();
+    syncDdFromDisplay();
     const needsOneOff = paymentType === 'one_off' || paymentType === 'both';
     const needsDd = paymentType === 'dd_only' || paymentType === 'both';
     if (needsOneOff && (oneOffAmountPence < 100)) return;
@@ -66,6 +88,8 @@ const AdminServiceRequests: React.FC = () => {
       setPaymentType('both');
       setOneOffAmountPence(15000);
       setDdAmountPence(5000);
+      setOneOffDisplay('150.00');
+      setDdDisplay('50.00');
       setDdDayOfMonth(15);
       await fetch();
     } catch (e) {
@@ -99,6 +123,8 @@ const AdminServiceRequests: React.FC = () => {
       setPaymentType('both');
       setOneOffAmountPence(15000);
       setDdAmountPence(5000);
+      setOneOffDisplay('150.00');
+      setDdDisplay('50.00');
       setDdDayOfMonth(15);
     }
   };
@@ -372,15 +398,12 @@ const AdminServiceRequests: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-white font-medium">£</span>
                         <input
-                          type="number"
-                          min="1"
-                          step="0.01"
-                          value={(oneOffAmountPence / 100).toFixed(2)}
-                          onChange={(e) => {
-                            const v = Math.round(parseFloat(e.target.value || '0') * 100);
-                            setOneOffAmountPence(Math.max(100, v));
-                          }}
-                          className="flex-1 px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                          type="text"
+                          inputMode="decimal"
+                          value={oneOffDisplay}
+                          onChange={(e) => setOneOffDisplay(e.target.value)}
+                          onBlur={syncOneOffFromDisplay}
+                          className="flex-1 px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           placeholder="150.00"
                         />
                       </div>
@@ -393,15 +416,12 @@ const AdminServiceRequests: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <span className="text-white font-medium">£</span>
                           <input
-                            type="number"
-                            min="1"
-                            step="0.01"
-                            value={(ddAmountPence / 100).toFixed(2)}
-                            onChange={(e) => {
-                              const v = Math.round(parseFloat(e.target.value || '0') * 100);
-                              setDdAmountPence(Math.max(100, v));
-                            }}
-                            className="flex-1 px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200]"
+                            type="text"
+                            inputMode="decimal"
+                            value={ddDisplay}
+                            onChange={(e) => setDdDisplay(e.target.value)}
+                            onBlur={syncDdFromDisplay}
+                            className="flex-1 px-4 py-3 rounded-xl bg-black border border-[#333333] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#F2C200] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             placeholder="50.00"
                           />
                         </div>
@@ -456,8 +476,8 @@ const AdminServiceRequests: React.FC = () => {
                   !notes.trim() ||
                   submitting ||
                   (action === 'approve' &&
-                    (((paymentType === 'one_off' || paymentType === 'both') && oneOffAmountPence < 100) ||
-                      ((paymentType === 'dd_only' || paymentType === 'both') && (ddAmountPence < 100 || ddDayOfMonth < 1 || ddDayOfMonth > 28))))
+                    (((paymentType === 'one_off' || paymentType === 'both') && parseDisplayToPence(oneOffDisplay) < 100) ||
+                      ((paymentType === 'dd_only' || paymentType === 'both') && (parseDisplayToPence(ddDisplay) < 100 || ddDayOfMonth < 1 || ddDayOfMonth > 28))))
                 }
                 className={`flex-1 py-2 rounded-xl font-bold ${
                   action === 'approve'

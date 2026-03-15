@@ -8,6 +8,16 @@ interface ProductsCatalogProps {
   user?: User | null;
 }
 
+function formatProductPrice(product: Product): string {
+  const min = product.price_min ?? product.price;
+  const max = product.price_max;
+  const hasRange = max != null && max !== min;
+  const amount = hasRange
+    ? `£${min.toLocaleString()} – £${max.toLocaleString()}`
+    : `£${min.toLocaleString()}`;
+  return amount;
+}
+
 const ProductsCatalog: React.FC<ProductsCatalogProps> = () => {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = React.useState('All');
@@ -71,7 +81,7 @@ const ProductsCatalog: React.FC<ProductsCatalogProps> = () => {
               <div className="flex flex-col gap-2 mt-auto pt-4 border-t border-[#333333]">
                 <div className="flex items-center justify-between">
                   <span className="text-xl font-bold text-[#F2C200]">
-                    {product.category === 'Services' ? 'From ' : ''}£{product.price.toLocaleString()}
+                    {product.category === 'Services' ? 'From ' : ''}{formatProductPrice(product)}
                     {product.name === 'Grease Cleaning Service Plan' && <span className="text-sm font-normal text-gray-400">/mo</span>}
                   </span>
                   <div className="flex gap-2">

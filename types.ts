@@ -77,6 +77,8 @@ export interface Product {
   name: string;
   description: string;
   price: number;
+  price_min?: number;
+  price_max?: number;
   image: string;
   category: string;
 }

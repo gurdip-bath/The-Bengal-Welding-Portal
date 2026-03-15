@@ -93,9 +93,15 @@ Deno.serve(async (req) => {
 
     const metadata = br?.billing_requests?.metadata ?? {};
     const serviceRequestId = metadata.service_request_id ?? null;
-    const paymentType = (metadata.payment_type ?? "one_off") as string;
-    const ddAmountPence = metadata.dd_amount_pence ?? null;
-    const ddDayOfMonth = metadata.dd_day_of_month ?? 15;
+    let paymentType = "one_off";
+    let ddAmountPence = null;
+    let ddDayOfMonth = 15;
+    try {
+      const data = metadata.data ? JSON.parse(metadata.data) : {};
+      paymentType = data.payment_type ?? paymentType;
+      ddAmountPence = data.dd_amount_pence != null ? Number(data.dd_amount_pence) : null;
+      ddDayOfMonth = data.dd_day_of_month != null ? Number(data.dd_day_of_month) : 15;
+    } catch (_) {}
 
     if (serviceRequestId) {
       const { data: sr, error: srErr } = await admin

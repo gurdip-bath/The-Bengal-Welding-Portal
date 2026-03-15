@@ -19,6 +19,10 @@ import AdminServiceRequests from './views/AdminServiceRequests';
 import AdminComplaints from './views/AdminComplaints';
 import AdminWarrantyClaims from './views/AdminWarrantyClaims';
 import AdminEmployees from './views/AdminEmployees';
+import AdminAddCustomer from './views/AdminAddCustomer';
+import AdminLeads from './views/AdminLeads';
+import AdminStockRequests from './views/AdminStockRequests';
+import SetPassword from './views/SetPassword';
 import ProductsCatalog from './views/ProductsCatalog';
 import GoCardlessCallback from './views/GoCardlessCallback';
 import GoCardlessServiceRequestCallback from './views/GoCardlessServiceRequestCallback';
@@ -31,9 +35,24 @@ import AddToHomeScreenPrompt from './components/AddToHomeScreenPrompt';
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
 
-  // Supabase auth state
+  // Supabase auth state + Format B invite fallback (hash has tokens but no /set-password path)
   useEffect(() => {
     const initAuth = async () => {
+      const hash = window.location.hash;
+      if (hash.includes('access_token=') && hash.includes('type=invite')) {
+        const afterHash = hash.slice(1);
+        const fragment = afterHash.includes('#') ? afterHash.split('#').pop()! : afterHash;
+        const params = new URLSearchParams(fragment);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          if (!error) {
+            const base = `${window.location.origin}${window.location.pathname || '/'}`;
+            window.history.replaceState(null, '', `${base}#/set-password`);
+          }
+        }
+      }
       const { data: { session } } = await supabase.auth.getSession();
       const user = await mapSessionToUserWithProfile(session?.user ?? null);
       setUser(user);
@@ -72,6 +91,7 @@ const App: React.FC = () => {
               <>
                 <Route path="/login" element={<Login onLogin={handleLogin} />} />
                 <Route path="/signup" element={<SignUp onLogin={handleLogin} />} />
+                <Route path="/set-password" element={<SetPassword />} />
                 <Route path="*" element={<Navigate to="/login" />} />
               </>
             ) : (
@@ -93,11 +113,15 @@ const App: React.FC = () => {
                     <Route path="complaints" element={<AdminComplaints />} />
                     <Route path="warranty-claims" element={<AdminWarrantyClaims />} />
                     <Route path="quotes" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="add-customer" element={<AdminAddCustomer />} />
+                    <Route path="leads" element={<AdminLeads />} />
+                    <Route path="stock-requests" element={<AdminStockRequests />} />
                     <Route path="employees" element={<AdminEmployees />} />
                   </Route>
                 ) : (
                   <Route path="/dashboard" element={<CustomerDashboard user={user} />} />
                 )}
+                <Route path="/set-password" element={<SetPassword />} />
                 <Route path="/products" element={<ProductsCatalog user={user} />} />
                 <Route path="/gocardless/callback" element={<GoCardlessCallback />} />
                 <Route path="/gocardless/service-request/callback" element={<GoCardlessServiceRequestCallback />} />

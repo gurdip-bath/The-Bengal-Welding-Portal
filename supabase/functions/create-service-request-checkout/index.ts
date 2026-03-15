@@ -132,12 +132,13 @@ Deno.serve(async (req) => {
         metadata: { supabase_user_id: user.id, service_request_id: serviceRequestId },
       },
       metadata: {
-        supabase_user_id: user.id,
-        type: "service_request",
         service_request_id: serviceRequestId,
-        payment_type: pt,
-        dd_amount_pence: hasDd ? (sr.dd_amount_pence ?? 0) : null,
-        dd_day_of_month: hasDd ? (sr.dd_day_of_month ?? 15) : null,
+        type: "service_request",
+        data: JSON.stringify({
+          payment_type: pt,
+          dd_amount_pence: hasDd ? (sr.dd_amount_pence ?? 0) : null,
+          dd_day_of_month: hasDd ? (sr.dd_day_of_month ?? 15) : null,
+        }),
       },
     };
 

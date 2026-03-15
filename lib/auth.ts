@@ -199,6 +199,47 @@ export async function registerEmployee(data: {
   return { success: true, user };
 }
 
+export async function createCustomer(data: {
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+}): Promise<{ success: boolean; user?: User; error?: string }> {
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return { success: false, error: 'Not authenticated' };
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/create-customer`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      name: data.name.trim(),
+      email: data.email.trim().toLowerCase(),
+      phone: data.phone?.trim() || '',
+      address: data.address?.trim() || '',
+      redirectTo: `${window.location.origin}${window.location.pathname || ''}#/set-password`,
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) return { success: false, error: json.error || `Request failed (${res.status})` };
+  const u = json.user;
+  if (!u) return { success: false, error: 'No user returned' };
+  const meta = u.user_metadata || {};
+  const user: User = {
+    id: u.id,
+    name: (meta.name as string) || u.email || '',
+    email: u.email || '',
+    role: 'CUSTOMER',
+    phone: meta.phone as string | undefined,
+    address: meta.address as string | undefined,
+  };
+  return { success: true, user };
+}
+
 export async function deleteUser(userId: string): Promise<{ success: boolean; error?: string }> {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;

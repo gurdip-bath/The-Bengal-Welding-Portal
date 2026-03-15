@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.finalize-service-request-payment]
 verify_jwt = false
+
+[functions.create-customer]
+verify_jwt = false

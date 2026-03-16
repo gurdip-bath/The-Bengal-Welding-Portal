@@ -3,8 +3,14 @@ import { useAdmin } from '../contexts/AdminContext';
 import { getAllUsers, deleteUser } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import type { StoredUser } from '../lib/auth';
+import { useOutletContext, Navigate } from 'react-router-dom';
+import type { User } from '../types';
 
 const AdminEmployees: React.FC = () => {
+  const { user } = useOutletContext<{ user: User }>();
+  if (user.role === 'ENGINEER') {
+    return <Navigate to="/dashboard" replace />;
+  }
   const { searchQuery, setSearchQuery, openAddEmployeeModal } = useAdmin();
   const [employees, setEmployees] = useState<StoredUser[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);

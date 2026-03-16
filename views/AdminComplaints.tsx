@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { listAllComplaints, updateComplaintStatus, type ComplaintRow } from '../lib/complaints';
 import { COLORS } from '../constants';
+import { Navigate, useOutletContext } from 'react-router-dom';
+import type { User } from '../types';
 
 const AdminComplaints: React.FC = () => {
+  const { user } = useOutletContext<{ user: User }>();
+  if (user.role === 'ENGINEER') {
+    return <Navigate to="/dashboard" replace />;
+  }
   const [complaints, setComplaints] = useState<ComplaintRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -314,7 +314,7 @@ const AdminCertificates: React.FC = () => {
           <div>
             <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">TR19 Certificates</h1>
             <p className="text-gray-500 text-sm font-bold mt-0.5">
-              {allCertificates.length} certificate{allCertificates.length !== 1 ? 's' : ''} generated
+              {allCertificates.length} TR19 certificate{allCertificates.length !== 1 ? 's' : ''} generated
             </p>
           </div>
           <button
@@ -322,7 +322,7 @@ const AdminCertificates: React.FC = () => {
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-[#F2C200] text-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[#F2C2001A] shrink-0"
           >
             <i className="fas fa-plus"></i>
-            <span>New Certificate</span>
+            <span>New TR19 Certificate</span>
           </button>
         </div>
         <div className="relative w-full max-w-md">

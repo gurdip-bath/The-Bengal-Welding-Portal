@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { MOCK_JOBS } from '../mockData';
 
 // Set to true to clear all jobs (Renewal Dashboard blank for testing), then set back to false
@@ -28,6 +28,7 @@ interface AdminWrapperProps {
 }
 
 const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<CustomerProfile | null>(null);
@@ -35,6 +36,8 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
   const [customerEditForm, setCustomerEditForm] = useState<CustomerProfile | null>(null);
   const [editingWarrantyJob, setEditingWarrantyJob] = useState<Job | null>(null);
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [isAddSiteTypeModalOpen, setIsAddSiteTypeModalOpen] = useState(false);
+  const [selectedSiteType, setSelectedSiteType] = useState<'TR19' | 'INSTALLATION' | ''>('');
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [jobForm, setJobForm] = useState<Partial<Job>>({
     title: '',
@@ -173,6 +176,11 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
       ppeRequired: '',
     });
     setIsJobModalOpen(true);
+  };
+
+  const openAddSiteTypeModal = () => {
+    setSelectedSiteType('');
+    setIsAddSiteTypeModalOpen(true);
   };
 
   const openEditJobModal = (job: Job) => {
@@ -335,6 +343,7 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
     selectedCustomerDetail,
     setSelectedCustomerDetail,
     openAddEmployeeModal,
+    openAddSiteTypeModal,
   };
 
   const now = new Date();
@@ -386,6 +395,72 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
             onSave={handleSaveJob}
             onClose={() => setIsJobModalOpen(false)}
           />
+        )}
+
+        {isAddSiteTypeModalOpen && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[550] flex items-center justify-center p-4">
+            <div className="bg-[#111111] border border-[#333333] rounded-2xl w-full max-w-md p-6 space-y-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white">Add Site</h2>
+                  <p className="text-sm text-gray-500 font-bold mt-0.5">
+                    Choose what type of site you want to add.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsAddSiteTypeModalOpen(false)}
+                  className="text-gray-500 hover:text-white transition-colors"
+                >
+                  <i className="fas fa-times text-xl"></i>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-gray-400 mb-1">
+                  Site type
+                </label>
+                <select
+                  value={selectedSiteType}
+                  onChange={(e) =>
+                    setSelectedSiteType(e.target.value as 'TR19' | 'INSTALLATION' | '')
+                  }
+                  className="w-full px-4 py-2.5 bg-black border border-[#333333] rounded-xl text-white text-sm focus:border-[#F2C200] focus:outline-none appearance-none"
+                >
+                  <option value="">Select site type...</option>
+                  <option value="TR19">TR19 Site</option>
+                  <option value="INSTALLATION">Installation Site</option>
+                </select>
+                <p className="text-[11px] text-gray-500">
+                  TR19 Site is for TR19 surveys and certificates. Installation Site is for general
+                  installation work and equipment tracking.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setIsAddSiteTypeModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl font-bold border border-[#333333] text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (!selectedSiteType) return;
+                    setIsAddSiteTypeModalOpen(false);
+                    if (selectedSiteType === 'TR19') {
+                      navigate('/dashboard/tr19/add');
+                    } else if (selectedSiteType === 'INSTALLATION') {
+                      navigate('/dashboard/sites', { state: { openAdd: true } });
+                    }
+                  }}
+                  disabled={!selectedSiteType}
+                  className="flex-1 py-3 rounded-xl font-bold bg-[#F2C200] text-black hover:brightness-110 disabled:opacity-60"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {isAddEmployeeModalOpen && (

@@ -13,6 +13,8 @@ export interface InstallationSite {
   contact_phone: string;
   contact_email: string | null;
   notes: string | null;
+  equipment_required: string | null;
+  media: { type: 'image' | 'video'; url: string; name?: string }[];
   created_at: string;
   updated_at: string;
 }
@@ -25,6 +27,8 @@ export interface InstallationSiteInsert {
   contact_phone: string;
   contact_email?: string | null;
   notes?: string | null;
+  equipment_required?: string | null;
+  media?: { type: 'image' | 'video'; url: string; name?: string }[];
 }
 
 export async function listInstallationSites(): Promise<InstallationSite[]> {

@@ -25,6 +25,7 @@ interface AdminContextValue {
   setSelectedCustomerDetail: (c: CustomerProfile | null) => void;
   openAddEmployeeModal: () => void;
   refreshEmployees?: () => void;
+  openAddSiteTypeModal?: () => void;
 }
 
 const AdminContext = createContext<AdminContextValue | null>(null);

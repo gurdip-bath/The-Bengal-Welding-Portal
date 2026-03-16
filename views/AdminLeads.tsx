@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate, useOutletContext } from 'react-router-dom';
 import {
   listLeads,
   createLead,
@@ -9,6 +9,7 @@ import {
   type LeadSource,
   type LeadStatus,
 } from '../lib/leads';
+import type { User } from '../types';
 
 const SOURCE_OPTIONS: { value: LeadSource; label: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp' },
@@ -35,6 +36,10 @@ const SOURCE_LABELS: Record<LeadSource, string> = {
 };
 
 const AdminLeads: React.FC = () => {
+  const { user } = useOutletContext<{ user: User }>();
+  if (user.role === 'ENGINEER') {
+    return <Navigate to="/dashboard" replace />;
+  }
   const navigate = useNavigate();
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);

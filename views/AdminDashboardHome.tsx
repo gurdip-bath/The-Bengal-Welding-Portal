@@ -56,7 +56,7 @@ function getWeekDates(weekStartStr: string): string[] {
 type CalendarViewMode = 'day' | 'week' | 'month';
 
 const AdminDashboardHome: React.FC = () => {
-  const { jobs, setJobs, openAddJobModal } = useAdmin();
+  const { jobs, setJobs, openAddJobModal, openAddSiteTypeModal } = useAdmin();
   const [scheduledMap, setScheduledMap] = useState<Record<string, ScheduledRenewal>>(() => {
     try {
       const stored = localStorage.getItem(SCHEDULED_STORAGE_KEY);
@@ -328,7 +328,7 @@ const AdminDashboardHome: React.FC = () => {
         </div>
         <div className="flex flex-wrap gap-3">
           <button
-            onClick={openAddJobModal}
+            onClick={openAddSiteTypeModal ?? openAddJobModal}
             className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm bg-[#111111] border border-[#333333] text-gray-300 hover:border-[#F2C200] hover:text-white transition-all"
           >
             <i className="fas fa-building-user"></i>
@@ -819,7 +819,7 @@ const AdminDashboardHome: React.FC = () => {
           </span>
         </Link>
         <button
-          onClick={openAddJobModal}
+          onClick={openAddSiteTypeModal ?? openAddJobModal}
           className="flex flex-col items-center justify-center p-6 rounded-2xl bg-[#111111] border border-[#333333] hover:border-[#F2C200] transition-all group"
         >
           <div className="w-12 h-12 rounded-xl bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200] mb-3 group-hover:bg-[#F2C200]/20 transition-colors">

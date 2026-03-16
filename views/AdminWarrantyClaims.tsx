@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { listAllWarrantyClaims, updateWarrantyClaimStatus, type WarrantyClaimRow } from '../lib/warrantyClaims';
 import { COLORS } from '../constants';
+import { Navigate, useOutletContext } from 'react-router-dom';
+import type { User } from '../types';
 
 const AdminWarrantyClaims: React.FC = () => {
+  const { user } = useOutletContext<{ user: User }>();
+  if (user.role === 'ENGINEER') {
+    return <Navigate to="/dashboard" replace />;
+  }
   const [claims, setClaims] = useState<WarrantyClaimRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { createCustomer } from '../lib/auth';
 import { updateLead } from '../lib/leads';
 import type { LeadRow } from '../lib/leads';
 import { LOGO, BRAND_NAME } from '../constants';
+import { useOutletContext } from 'react-router-dom';
+import type { User } from '../types';
 
 const AdminAddCustomer: React.FC = () => {
+  const { user } = useOutletContext<{ user: User }>();
+  if (user.role === 'ENGINEER') {
+    return <Navigate to="/dashboard" replace />;
+  }
   const location = useLocation();
   const navigate = useNavigate();
   const fromLead = (location.state as { fromLead?: LeadRow } | null)?.fromLead;

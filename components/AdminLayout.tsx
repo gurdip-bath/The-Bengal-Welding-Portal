@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import { User } from '../types';
 import { LOGO, BRAND_NAME } from '../constants';
 import { supabase } from '../lib/supabase';
@@ -25,6 +25,24 @@ const SIDEBAR_ITEMS = [
   { path: '/dashboard/warranty-claims', label: 'Warranty Claims', icon: 'fa-file-contract' },
   { path: '/dashboard/employees', label: 'Employees', icon: 'fa-user-shield' },
 ];
+
+function getSidebarItemsForRole(role: User['role']) {
+  if (role === 'ADMIN') return SIDEBAR_ITEMS;
+  if (role === 'ENGINEER') {
+    const allowedPaths = new Set([
+      '/dashboard',
+      '/dashboard/jobs',
+      '/dashboard/tr19',
+      '/dashboard/certificates',
+      '/dashboard/report-log',
+      '/dashboard/stock-requests',
+      '/dashboard/sites',
+    ]);
+    return SIDEBAR_ITEMS.filter((item) => allowedPaths.has(item.path));
+  }
+  // Fallback: no sidebar items for other roles (customers never hit AdminLayout)
+  return [];
+}
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
   const location = useLocation();
@@ -67,7 +85,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
   };
 
   const getBreadcrumb = () => {
-    const item = SIDEBAR_ITEMS.find((i) => location.pathname === i.path || (i.path !== '/dashboard' && location.pathname.startsWith(i.path)));
+    const itemsForRole = getSidebarItemsForRole(user.role);
+    const item = itemsForRole.find(
+      (i) => location.pathname === i.path || (i.path !== '/dashboard' && location.pathname.startsWith(i.path))
+    );
     return item?.label || 'Dashboard';
   };
 
@@ -101,7 +122,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ user, onLogout }) => {
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {SIDEBAR_ITEMS.map((item) => {
+          {getSidebarItemsForRole(user.role).map((item) => {
             const isActive = location.pathname === item.path;
             const showPendingBadge = item.path === '/dashboard/service-requests' && pendingServiceRequestsCount > 0;
             return (

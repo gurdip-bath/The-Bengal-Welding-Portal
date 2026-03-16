@@ -107,14 +107,14 @@ const AdminSurveys: React.FC = () => {
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-[#111111] border border-[#333333] text-gray-300 hover:border-[#F2C200] hover:text-white transition-all"
           >
             <i className="fas fa-briefcase"></i>
-            TR19 from Job
+            + New TR19 Survey
           </Link>
           <Link
-            to="/dashboard/surveys/add"
+            to="/dashboard/tr19/add"
             className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm bg-[#F2C200] text-black hover:brightness-110 transition-all shadow-lg shadow-[#F2C2001A]"
           >
             <i className="fas fa-plus"></i>
-            Add Site Survey
+            + Site Survey
           </Link>
         </div>
       </div>

@@ -53,15 +53,15 @@ using (
   or exists (select 1 from public.profiles where id = auth.uid() and lower(role) = 'admin')
 );
 
--- Only admins can insert/update/delete jobs
-create policy "jobs_insert_admin"
+-- Admins and engineers can insert/update/delete jobs
+create policy "jobs_insert_staff"
 on public.jobs for insert
-with check (exists (select 1 from public.profiles where id = auth.uid() and lower(role) = 'admin'));
+with check (exists (select 1 from public.profiles where id = auth.uid() and lower(role) in ('admin','engineer')));
 
-create policy "jobs_update_admin"
+create policy "jobs_update_staff"
 on public.jobs for update
-using (exists (select 1 from public.profiles where id = auth.uid() and lower(role) = 'admin'));
+using (exists (select 1 from public.profiles where id = auth.uid() and lower(role) in ('admin','engineer')));
 
-create policy "jobs_delete_admin"
+create policy "jobs_delete_staff"
 on public.jobs for delete
-using (exists (select 1 from public.profiles where id = auth.uid() and lower(role) = 'admin'));
+using (exists (select 1 from public.profiles where id = auth.uid() and lower(role) in ('admin','engineer')));

@@ -35,6 +35,9 @@ const AdminSites: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [mediaPreview, setMediaPreview] = useState<
+    { type: 'image' | 'video'; url: string; name?: string } | null
+  >(null);
 
   const loadSites = () => {
     setLoading(true);
@@ -443,13 +446,40 @@ const AdminSites: React.FC = () => {
                   </p>
                 )}
                 {form.media && form.media.length > 0 && (
-                  <div className="mt-3 space-y-1">
+                  <div className="mt-3 space-y-2">
                     <p className="text-[11px] text-gray-400 font-bold">
-                      Attached files:
+                      Attached files (click to view):
                     </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {form.media.map((m, idx) => (
+                        <button
+                          key={`${m.url}-${idx}`}
+                          type="button"
+                          onClick={() => setMediaPreview(m)}
+                          className="relative group aspect-square rounded-lg overflow-hidden border border-[#333333] hover:border-[#F2C200] transition-colors"
+                        >
+                          {m.type === 'image' ? (
+                            <img
+                              src={m.url}
+                              alt={m.name || 'Site media'}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <video
+                              src={m.url}
+                              className="w-full h-full object-cover"
+                              muted
+                            />
+                          )}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] font-bold text-white transition-opacity">
+                            View {m.type === 'image' ? 'Image' : 'Video'}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                     <ul className="space-y-0.5 text-[11px] text-gray-400">
                       {form.media.map((m, idx) => (
-                        <li key={`${m.url}-${idx}`} className="truncate">
+                        <li key={`name-${m.url}-${idx}`} className="truncate">
                           <span className="uppercase mr-1 text-[#F2C200]">
                             [{m.type}]
                           </span>
@@ -486,6 +516,50 @@ const AdminSites: React.FC = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {mediaPreview && (
+        <div
+          className="fixed inset-0 bg-black/90 z-[700] flex items-center justify-center p-4"
+          onClick={() => setMediaPreview(null)}
+        >
+          <div
+            className="relative max-w-5xl max-h-[90vh] w-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {mediaPreview.type === 'image' ? (
+              <img
+                src={mediaPreview.url}
+                alt={mediaPreview.name || 'Site media'}
+                className="max-w-full max-h-[80vh] object-contain"
+              />
+            ) : (
+              <video
+                src={mediaPreview.url}
+                controls
+                className="max-w-full max-h-[80vh] bg-black"
+              />
+            )}
+            <div className="absolute bottom-3 left-3 flex gap-2">
+              <a
+                href={mediaPreview.url}
+                download={mediaPreview.name || 'site-media'}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/70 text-xs font-bold text-white hover:bg-black"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <i className="fas fa-download text-xs" />
+                <span>Download</span>
+              </a>
+            </div>
+            <button
+              onClick={() => setMediaPreview(null)}
+              className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white rounded-full p-2"
+            >
+              <i className="fas fa-times" />
+            </button>
           </div>
         </div>
       )}

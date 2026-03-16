@@ -10,47 +10,83 @@ values ('installation-site-media', 'installation-site-media', false)
 on conflict (id) do nothing;
 
 -- Storage policies: admins and engineers can upload/read/update/delete in installation-site-media
-create policy if not exists "installation_site_media_insert"
-on storage.objects for insert
-to authenticated
-with check (
-  bucket_id = 'installation-site-media'
-  and exists (
-    select 1 from public.profiles
-    where id = auth.uid() and lower(role) in ('admin', 'engineer')
-  )
-);
+do $$
+begin
+  -- Insert
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'installation_site_media_insert'
+  ) then
+    create policy "installation_site_media_insert"
+    on storage.objects for insert
+    to authenticated
+    with check (
+      bucket_id = 'installation-site-media'
+      and exists (
+        select 1 from public.profiles
+        where id = auth.uid() and lower(role) in ('admin', 'engineer')
+      )
+    );
+  end if;
 
-create policy if not exists "installation_site_media_select"
-on storage.objects for select
-to authenticated
-using (
-  bucket_id = 'installation-site-media'
-  and exists (
-    select 1 from public.profiles
-    where id = auth.uid() and lower(role) in ('admin', 'engineer')
-  )
-);
+  -- Select
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'installation_site_media_select'
+  ) then
+    create policy "installation_site_media_select"
+    on storage.objects for select
+    to authenticated
+    using (
+      bucket_id = 'installation-site-media'
+      and exists (
+        select 1 from public.profiles
+        where id = auth.uid() and lower(role) in ('admin', 'engineer')
+      )
+    );
+  end if;
 
-create policy if not exists "installation_site_media_update"
-on storage.objects for update
-to authenticated
-using (
-  bucket_id = 'installation-site-media'
-  and exists (
-    select 1 from public.profiles
-    where id = auth.uid() and lower(role) in ('admin', 'engineer')
-  )
-);
+  -- Update
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'installation_site_media_update'
+  ) then
+    create policy "installation_site_media_update"
+    on storage.objects for update
+    to authenticated
+    using (
+      bucket_id = 'installation-site-media'
+      and exists (
+        select 1 from public.profiles
+        where id = auth.uid() and lower(role) in ('admin', 'engineer')
+      )
+    );
+  end if;
 
-create policy if not exists "installation_site_media_delete"
-on storage.objects for delete
-to authenticated
-using (
-  bucket_id = 'installation-site-media'
-  and exists (
-    select 1 from public.profiles
-    where id = auth.uid() and lower(role) in ('admin', 'engineer')
-  )
-);
+  -- Delete
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'installation_site_media_delete'
+  ) then
+    create policy "installation_site_media_delete"
+    on storage.objects for delete
+    to authenticated
+    using (
+      bucket_id = 'installation-site-media'
+      and exists (
+        select 1 from public.profiles
+        where id = auth.uid() and lower(role) in ('admin', 'engineer')
+      )
+    );
+  end if;
+end;
+$$;
 

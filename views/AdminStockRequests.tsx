@@ -9,6 +9,7 @@ import {
   type StockRequestRow,
   type StockRequestStatus,
 } from '../lib/stockRequests';
+import { getAllUsers } from '../lib/auth';
 import type { User } from '../types';
 
 const STATUS_OPTIONS: { value: StockRequestStatus; label: string }[] = [
@@ -32,6 +33,7 @@ const AdminStockRequests: React.FC = () => {
   const isAdmin = user.role === 'ADMIN';
 
   const [requests, setRequests] = useState<StockRequestRow[]>([]);
+  const [userNameById, setUserNameById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<StockRequestStatus | 'all'>('all');
@@ -50,10 +52,21 @@ const AdminStockRequests: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = isAdmin
-        ? await listStockRequestsForAdmin()
-        : await listStockRequestsForEngineer(user.id);
-      setRequests(data);
+      if (isAdmin) {
+        const [data, users] = await Promise.all([
+          listStockRequestsForAdmin(),
+          getAllUsers(),
+        ]);
+        setRequests(data);
+        const map: Record<string, string> = {};
+        (users || []).forEach((u) => {
+          map[u.id] = u.name || u.email || u.id;
+        });
+        setUserNameById(map);
+      } else {
+        const data = await listStockRequestsForEngineer(user.id);
+        setRequests(data);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load stock requests');
     } finally {
@@ -81,6 +94,7 @@ const AdminStockRequests: React.FC = () => {
     try {
       await createStockRequest({
         requested_by: user.id,
+        requested_by_name: user.name,
         item_description: addForm.item_description.trim(),
         quantity: addForm.quantity.trim() || undefined,
         site_or_job: addForm.site_or_job.trim() || undefined,
@@ -217,7 +231,9 @@ const AdminStockRequests: React.FC = () => {
                 </td>
                 {isAdmin && (
                   <td className="px-6 py-4 text-xs text-gray-400">
-                    {req.requested_by === user.id ? 'You' : req.requested_by.slice(0, 8) + '…'}
+                    {req.requested_by === user.id
+                      ? 'You'
+                      : req.requested_by_name ?? userNameById[req.requested_by] ?? req.requested_by.slice(0, 8) + '…'}
                   </td>
                 )}
                 <td className="px-6 py-4 text-xs text-gray-500">

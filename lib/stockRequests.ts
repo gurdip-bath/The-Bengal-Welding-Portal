@@ -10,6 +10,7 @@ export type StockRequestStatus = 'pending' | 'ordered' | 'delivered';
 export interface StockRequestRow {
   id: string;
   requested_by: string;
+  requested_by_name?: string | null;
   item_description: string;
   quantity: string | null;
   site_or_job: string | null;
@@ -43,6 +44,7 @@ export async function listStockRequestsForEngineer(userId: string): Promise<Stoc
 
 export async function createStockRequest(data: {
   requested_by: string;
+  requested_by_name?: string;
   item_description: string;
   quantity?: string;
   site_or_job?: string;
@@ -50,6 +52,7 @@ export async function createStockRequest(data: {
 }): Promise<StockRequestRow> {
   const row = {
     requested_by: data.requested_by,
+    requested_by_name: data.requested_by_name?.trim() || null,
     item_description: data.item_description.trim(),
     quantity: data.quantity?.trim() || null,
     site_or_job: data.site_or_job?.trim() || null,

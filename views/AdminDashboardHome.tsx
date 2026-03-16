@@ -419,7 +419,7 @@ const AdminDashboardHome: React.FC = () => {
           </div>
           <div>
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Due Soon</p>
-            <p className="text-2xl font-black text-white">{dueSoonJobsDisplay.length}</p>
+            <p className="text-2xl font-black text-white">{dueSoonSiteCount}</p>
           </div>
         </Link>
       </div>

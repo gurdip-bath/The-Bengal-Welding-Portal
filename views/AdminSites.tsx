@@ -46,9 +46,7 @@ const AdminSites: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [startTime, setStartTime] = useState('08:00');
-  const [duration, setDuration] = useState(2);
   const [jobType, setJobType] = useState('TR19 Grease Clean (Kitchen Extract)');
-  const [contractValueInput, setContractValueInput] = useState('1200');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [calendarView, setCalendarView] = useState(() => {
     const t = new Date();
@@ -361,9 +359,7 @@ const AdminSites: React.FC = () => {
     setStartDate('');
     setEndDate('');
     setStartTime('08:00');
-    setDuration(2);
     setJobType('TR19 Grease Clean (Kitchen Extract)');
-    setContractValueInput('1200');
     setScheduleError(null);
     setScheduleModalOpen(true);
   };
@@ -372,11 +368,6 @@ const AdminSites: React.FC = () => {
     if (!scheduleSite) return;
     if (!startDate || !endDate) {
       setScheduleError('Please choose both a start date and an end date.');
-      return;
-    }
-    const newValue = parseFloat(contractValueInput) || 0;
-    if (newValue < 0) {
-      setScheduleError('Contract value cannot be negative.');
       return;
     }
     const start = new Date(startDate + 'T12:00:00');
@@ -405,9 +396,8 @@ const AdminSites: React.FC = () => {
         warrantyEndDate: endStr,
         scheduledCleanDate: startStr,
         paymentStatus: 'UNPAID',
-        amount: newValue,
+        amount: 0,
         startTime,
-        duration,
         jobType,
         leadOperative: 'ZAKEE — zakee.hussain@outlook.com',
       };
@@ -939,34 +929,19 @@ const AdminSites: React.FC = () => {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Start time *</label>
-                  <select
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className={inputClass}
-                  >
-                    {START_TIMES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Duration *</label>
-                  <select
-                    value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
-                    className={inputClass}
-                  >
-                    <option value={1}>1 hour</option>
-                    <option value={2}>2 hours</option>
-                    <option value={3}>3 hours</option>
-                    <option value={4}>4 hours</option>
-                  </select>
-                </div>
+              <div>
+                <label className={labelClass}>Start time *</label>
+                <select
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className={inputClass}
+                >
+                  {START_TIMES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className={labelClass}>Job type *</label>
@@ -981,17 +956,6 @@ const AdminSites: React.FC = () => {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className={labelClass}>Contract value (£)</label>
-                <input
-                  type="number"
-                  value={contractValueInput}
-                  onChange={(e) => setContractValueInput(e.target.value)}
-                  min={0}
-                  step={0.01}
-                  className={inputClass}
-                />
               </div>
               {startDate && endDate && (
                 <p className="text-[11px] text-gray-400 font-bold">

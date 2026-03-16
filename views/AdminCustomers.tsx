@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, useOutletContext } from 'react-router-dom';
 import type { User } from '../types';
-import { getAllUsers, type StoredUser } from '../lib/auth';
+import { getAllUsers, deleteUser, type StoredUser } from '../lib/auth';
 import {
   createCustomerProduct,
   deleteCustomerProduct,
@@ -70,6 +70,28 @@ const AdminCustomers: React.FC = () => {
   useEffect(() => {
     loadCustomers();
   }, []);
+
+  const handleDeleteCustomer = async (customer: StoredUser) => {
+    if (!window.confirm(`Delete customer "${customer.name}" and all associated data?`)) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await deleteUser(customer.id);
+      if (!result.success) {
+        setError(result.error || 'Failed to delete customer.');
+      } else {
+        if (selected?.id === customer.id) {
+          setSelected(null);
+          setProducts([]);
+        }
+        await loadCustomers();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete customer.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -272,6 +294,7 @@ const AdminCustomers: React.FC = () => {
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Business Name</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Contact</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Products</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#333333]">
@@ -303,11 +326,25 @@ const AdminCustomers: React.FC = () => {
                         {c.productsCount || 0}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCustomer(c);
+                        }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase bg-transparent text-red-400 border border-red-800/50 hover:bg-red-900/30"
+                        title="Delete customer"
+                      >
+                        <i className="fas fa-trash-alt" />
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {!loading && filtered.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-bold text-sm">
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-bold text-sm">
                       No customers found.
                     </td>
                   </tr>

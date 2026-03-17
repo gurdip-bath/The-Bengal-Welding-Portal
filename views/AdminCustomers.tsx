@@ -614,9 +614,9 @@ const AdminCustomers: React.FC = () => {
       </div>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-[#111111] border border-[#333333] rounded-2xl overflow-hidden shadow-2xl">
-            <div className="bg-[#F2C200] p-5 text-black flex items-center justify-between">
+        <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-[#111111] border border-[#333333] rounded-2xl overflow-hidden shadow-2xl max-h-[calc(100dvh-2rem)] flex flex-col">
+            <div className="bg-[#F2C200] p-5 text-black flex items-center justify-between shrink-0">
               <h3 className="text-lg font-bold">
                 {editing ? 'Edit Assigned Product' : 'Assign Product to Customer'}
               </h3>
@@ -624,7 +624,7 @@ const AdminCustomers: React.FC = () => {
                 <i className="fas fa-times text-lg" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto">
               {formError && (
                 <div className="p-3 rounded-xl bg-red-900/30 border border-red-800/50 text-red-400 text-sm font-bold">
                   {formError}
@@ -750,9 +750,9 @@ const AdminCustomers: React.FC = () => {
       )}
 
       {isEditCustomerOpen && (
-        <div className="fixed inset-0 z-[320] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-[#111111] border border-[#333333] rounded-2xl overflow-hidden shadow-2xl">
-            <div className="bg-[#F2C200] p-5 text-black flex items-center justify-between">
+        <div className="fixed inset-0 z-[320] bg-black/90 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-[#111111] border border-[#333333] rounded-2xl overflow-hidden shadow-2xl max-h-[calc(100dvh-2rem)] flex flex-col">
+            <div className="bg-[#F2C200] p-5 text-black flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-lg font-bold">Edit Customer</h3>
                 <p className="text-[10px] font-black uppercase opacity-70 tracking-widest">ID: {editCustomerForm.id}</p>
@@ -767,7 +767,7 @@ const AdminCustomers: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto">
               {editCustomerError && (
                 <div className="p-3 rounded-xl bg-red-900/30 border border-red-800/50 text-red-400 text-sm font-bold">
                   {editCustomerError}

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useOutletContext } from 'react-router-dom';
-import type { User } from '../types';
+import type { CustomerAttachment, CustomerAttachmentKind, User } from '../types';
 import { getAllUsers, getCachedAllUsers, deleteUser, updateCustomer, type StoredUser } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import {
@@ -38,6 +38,10 @@ const AdminCustomers: React.FC = () => {
     phone: '',
     address: '',
   });
+  const [editCustomerAttachments, setEditCustomerAttachments] = useState<CustomerAttachment[]>([]);
+  const [attachmentsUploading, setAttachmentsUploading] = useState(false);
+  const [attachmentsError, setAttachmentsError] = useState<string | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<CustomerAttachment | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<CustomerProduct | null>(null);
@@ -202,6 +206,38 @@ const AdminCustomers: React.FC = () => {
     }
   };
 
+  const CUSTOMER_ATTACHMENTS_BUCKET = 'customer-attachments';
+  const MAX_ATTACHMENTS_FILES = 20;
+  const MAX_FILE_MB = 50;
+
+  const toAttachmentKind = (file: File): CustomerAttachmentKind => {
+    if (file.type === 'application/pdf') return 'pdf';
+    if (file.type.startsWith('image/')) return 'image';
+    if (file.type.startsWith('video/')) return 'video';
+    return 'file';
+  };
+
+  const safeFileName = (name: string) =>
+    name
+      .trim()
+      .replace(/[^\w.\- ]+/g, '')
+      .replace(/\s+/g, '-')
+      .slice(0, 120) || 'file';
+
+  const generateAttachmentPath = (customerId: string, fileName: string) => {
+    const cleaned = safeFileName(fileName);
+    const slug = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return `${customerId}/${slug}-${cleaned}`;
+  };
+
+  const persistCustomerAttachments = async (customerId: string, attachments: CustomerAttachment[]) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ attachments })
+      .eq('id', customerId);
+    if (error) throw new Error(error.message || 'Failed to save attachments');
+  };
+
   const openEditCustomer = (customer: StoredUser) => {
     setEditCustomerError(null);
     setEditCustomerForm({
@@ -211,7 +247,89 @@ const AdminCustomers: React.FC = () => {
       phone: customer.phone || '',
       address: customer.address || '',
     });
+    setEditCustomerAttachments(customer.attachments ?? []);
+    setAttachmentsError(null);
     setIsEditCustomerOpen(true);
+  };
+
+  const handleCustomerAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    if (!editCustomerForm.id) return;
+
+    setAttachmentsError(null);
+    const currentCount = editCustomerAttachments.length;
+    if (currentCount + files.length > MAX_ATTACHMENTS_FILES) {
+      setAttachmentsError(`You can attach up to ${MAX_ATTACHMENTS_FILES} files per customer.`);
+      e.target.value = '';
+      return;
+    }
+
+    const overLimit = Array.from(files).find((f) => f.size > MAX_FILE_MB * 1024 * 1024);
+    if (overLimit) {
+      setAttachmentsError(`Each file must be ${MAX_FILE_MB} MB or smaller.`);
+      e.target.value = '';
+      return;
+    }
+
+    setAttachmentsUploading(true);
+    try {
+      const created: CustomerAttachment[] = [];
+      for (const file of Array.from(files)) {
+        const path = generateAttachmentPath(editCustomerForm.id, file.name);
+        const { error: uploadError } = await supabase.storage
+          .from(CUSTOMER_ATTACHMENTS_BUCKET)
+          .upload(path, file, { cacheControl: '3600', upsert: false });
+        if (uploadError) throw new Error(uploadError.message || 'Upload failed');
+        const { data } = supabase.storage.from(CUSTOMER_ATTACHMENTS_BUCKET).getPublicUrl(path);
+        created.push({
+          kind: toAttachmentKind(file),
+          path,
+          url: data.publicUrl,
+          name: file.name,
+          mime: file.type || undefined,
+          size: file.size || undefined,
+          uploadedAt: new Date().toISOString(),
+        });
+      }
+
+      const next = [...editCustomerAttachments, ...created];
+      await persistCustomerAttachments(editCustomerForm.id, next);
+      setEditCustomerAttachments(next);
+
+      // keep list view in sync without a full refresh
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === editCustomerForm.id ? { ...c, attachments: next } : c))
+      );
+      setSelected((prev) => (prev?.id === editCustomerForm.id ? { ...prev, attachments: next } : prev));
+    } catch (err) {
+      setAttachmentsError(err instanceof Error ? err.message : 'Failed to upload attachment(s).');
+    } finally {
+      setAttachmentsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = async (attachment: CustomerAttachment) => {
+    if (!editCustomerForm.id) return;
+    if (!window.confirm(`Remove "${attachment.name}"?`)) return;
+    setAttachmentsError(null);
+    try {
+      const next = editCustomerAttachments.filter((a) => a.path !== attachment.path);
+      await persistCustomerAttachments(editCustomerForm.id, next);
+      setEditCustomerAttachments(next);
+
+      // best-effort delete from storage (ignore failures so UI doesn't break)
+      await supabase.storage.from(CUSTOMER_ATTACHMENTS_BUCKET).remove([attachment.path]).catch(() => null);
+
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === editCustomerForm.id ? { ...c, attachments: next } : c))
+      );
+      setSelected((prev) => (prev?.id === editCustomerForm.id ? { ...prev, attachments: next } : prev));
+      if (attachmentPreview?.path === attachment.path) setAttachmentPreview(null);
+    } catch (err) {
+      setAttachmentsError(err instanceof Error ? err.message : 'Failed to remove attachment.');
+    }
   };
 
   const handleSaveCustomer = async () => {
@@ -814,6 +932,89 @@ const AdminCustomers: React.FC = () => {
                 />
               </div>
 
+              <div className="pt-4 border-t border-[#333333] space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-[#F2C200]">Attachments</p>
+                    <p className="text-[10px] text-gray-500 font-bold mt-1">
+                      Images, PDFs, documents and videos. Click a tile to view.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                    {editCustomerAttachments.length}/{MAX_ATTACHMENTS_FILES}
+                  </span>
+                </div>
+
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,video/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                  onChange={handleCustomerAttachmentUpload}
+                  disabled={attachmentsUploading || editCustomerSaving}
+                  className="block w-full text-sm text-gray-300 file:mr-3 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-[#F2C200] file:text-black hover:file:brightness-110 cursor-pointer disabled:opacity-60"
+                />
+                <p className="text-[11px] text-gray-500 font-bold">
+                  Up to {MAX_ATTACHMENTS_FILES} files. Max {MAX_FILE_MB}MB per file.
+                </p>
+                {attachmentsError && (
+                  <div className="px-4 py-2 rounded-lg bg-red-900/30 border border-red-800/50 text-red-400 text-xs font-bold">
+                    {attachmentsError}
+                  </div>
+                )}
+                {attachmentsUploading && (
+                  <p className="text-xs text-gray-400 font-bold">
+                    <i className="fas fa-spinner fa-spin mr-2" />
+                    Uploading attachments...
+                  </p>
+                )}
+
+                {editCustomerAttachments.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {editCustomerAttachments.map((a) => (
+                      <div
+                        key={a.path}
+                        className="relative group aspect-square rounded-lg overflow-hidden border border-[#333333] hover:border-[#F2C200] transition-colors bg-black"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setAttachmentPreview(a)}
+                          className="absolute inset-0 w-full h-full"
+                          title="View attachment"
+                        >
+                          {a.kind === 'image' ? (
+                            <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
+                          ) : a.kind === 'video' ? (
+                            <video src={a.url} className="w-full h-full object-cover" muted />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center px-2 text-center">
+                              <i
+                                className={`fas ${
+                                  a.kind === 'pdf' ? 'fa-file-pdf text-red-400' : 'fa-paperclip text-gray-400'
+                                } text-2xl mb-2`}
+                              />
+                              <span className="text-[10px] text-gray-300 font-bold line-clamp-2">
+                                {a.name}
+                              </span>
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] font-bold text-white">
+                            View
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAttachment(a)}
+                          className="absolute top-1 right-1 w-7 h-7 rounded-full bg-red-500 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Remove"
+                        >
+                          <i className="fas fa-trash-alt" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="pt-2 flex items-center gap-2">
                 <button
                   type="button"
@@ -833,6 +1034,78 @@ const AdminCustomers: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {attachmentPreview && (
+        <div
+          className="fixed inset-0 bg-black/90 z-[700] flex items-center justify-center p-4"
+          onClick={() => setAttachmentPreview(null)}
+        >
+          <div
+            className="relative max-w-5xl max-h-[90vh] w-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {attachmentPreview.kind === 'image' ? (
+              <img
+                src={attachmentPreview.url}
+                alt={attachmentPreview.name}
+                className="max-w-full max-h-[80vh] object-contain"
+              />
+            ) : attachmentPreview.kind === 'video' ? (
+              <video
+                src={attachmentPreview.url}
+                controls
+                className="max-w-full max-h-[80vh] bg-black"
+              />
+            ) : attachmentPreview.kind === 'pdf' ? (
+              <iframe
+                src={attachmentPreview.url}
+                title={attachmentPreview.name}
+                className="w-full h-[80vh] bg-black rounded-lg border border-[#333333]"
+              />
+            ) : (
+              <div className="w-full max-w-xl bg-[#111111] border border-[#333333] rounded-2xl p-6">
+                <p className="text-white font-bold">{attachmentPreview.name}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  This file type can be downloaded and opened locally.
+                </p>
+              </div>
+            )}
+
+            <div className="absolute bottom-3 left-3 flex gap-2">
+              <a
+                href={attachmentPreview.url}
+                download={attachmentPreview.name || 'attachment'}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/70 text-xs font-bold text-white hover:bg-black"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <i className="fas fa-download text-xs" />
+                <span>{attachmentPreview.kind === 'pdf' ? 'Download PDF' : 'Download'}</span>
+              </a>
+              {attachmentPreview.kind === 'video' && (
+                <a
+                  href={attachmentPreview.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/70 text-xs font-bold text-white hover:bg-black"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <i className="fas fa-up-right-from-square text-xs" />
+                  <span>Open</span>
+                </a>
+              )}
+            </div>
+
+            <button
+              onClick={() => setAttachmentPreview(null)}
+              className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white rounded-full p-2"
+            >
+              <i className="fas fa-times" />
+            </button>
           </div>
         </div>
       )}

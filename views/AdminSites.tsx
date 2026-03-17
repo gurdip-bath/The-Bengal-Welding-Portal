@@ -62,11 +62,9 @@ const AdminSites: React.FC = () => {
 
   const JOB_TYPES = [
     'TR19 Grease Clean (Kitchen Extract)',
-    'Ductwork Inspection & Report',
-    'Fire Safety Compliance Check',
-    'Full Kitchen Extract Deep Clean',
     'Kitchen Installations',
     'Service Work',
+    'Collections',
   ];
 
   const START_TIMES = Array.from({ length: 48 }, (_, i) => {

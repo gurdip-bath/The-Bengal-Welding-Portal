@@ -94,6 +94,18 @@ export interface FileMeta {
   uploadDate: string;
 }
 
+export type CustomerAttachmentKind = 'image' | 'video' | 'pdf' | 'file';
+
+export interface CustomerAttachment {
+  kind: CustomerAttachmentKind;
+  path: string;
+  url: string;
+  name: string;
+  mime?: string;
+  size?: number;
+  uploadedAt?: string;
+}
+
 export interface AppState {
   user: User | null;
   jobs: Job[];

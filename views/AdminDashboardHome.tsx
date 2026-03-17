@@ -4,6 +4,7 @@ import { Job } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
 import { listServiceRequestsForAdmin } from '../lib/serviceRequests';
 import { listInstallationSites } from '../lib/installationSites';
+import { listSiteSurveys } from '../lib/siteSurveys';
 
 const TR19_REPORTS_STORAGE_KEY = 'bengal_tr19_reports';
 
@@ -86,11 +87,9 @@ const AdminDashboardHome: React.FC = () => {
 
   const JOB_TYPES = [
     'TR19 Grease Clean (Kitchen Extract)',
-    'Ductwork Inspection & Report',
-    'Fire Safety Compliance Check',
-    'Full Kitchen Extract Deep Clean',
     'Kitchen Installations',
     'Service Work',
+    'Collections',
   ];
 
   const START_TIMES = Array.from({ length: 48 }, (_, i) => {
@@ -110,12 +109,22 @@ const AdminDashboardHome: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    listInstallationSites()
-      .then((sites) => {
-        setSiteCount(sites.length);
-        setInstallationSiteIds(sites.map((s) => s.id));
+    Promise.all([
+      listInstallationSites(),
+      // Only submitted TR19 sites count towards "Active Sites".
+      listSiteSurveys('submitted'),
+    ])
+      .then(([installationSites, submittedTr19Sites]) => {
+        setInstallationSiteIds(installationSites.map((s) => s.id));
+        // Keep "Active Sites" as a single metric while preserving the existing /dashboard/sites link.
+        // No duplication risk here because these come from different entities/tables.
+        setSiteCount(installationSites.length + submittedTr19Sites.length);
       })
-      .catch(() => setSiteCount(0));
+      .catch(() => {
+        // If Supabase is misconfigured/offline, keep dashboard functional with safe defaults.
+        setInstallationSiteIds([]);
+        setSiteCount(0);
+      });
   }, []);
 
   const now = new Date();
@@ -131,6 +140,23 @@ const AdminDashboardHome: React.FC = () => {
     job.customerPostcode || (job.customerAddress ? job.customerAddress.split(',').pop()?.trim() || '' : '');
 
   const installationSiteIdSet = useMemo(() => new Set(installationSiteIds), [installationSiteIds]);
+
+  const calendarJobClassName = (job: Job): string => {
+    const type = (job.jobType || '').trim();
+    const base = 'border border-[#333333] rounded-lg bg-[#111111] transition-colors';
+
+    // Neutral (no colored border) for Collections or blank.
+    if (!type || type === 'Collections') return `${base} hover:border-[#F2C200]`;
+
+    // TR19 always blue when Job Type contains TR19.
+    if (type.includes('TR19')) return `${base} border-l-4 border-l-blue-500 hover:border-blue-400`;
+
+    // Kitchen Installations always green.
+    if (type === 'Kitchen Installations') return `${base} border-l-4 border-l-green-500 hover:border-green-400`;
+
+    // Service Work and all other existing/legacy types stay amber.
+    return `${base} border-l-4 border-l-amber-500 hover:border-amber-400`;
+  };
 
   const tr19Reports = useMemo(() => {
     try {
@@ -464,6 +490,24 @@ const AdminDashboardHome: React.FC = () => {
               {calendarViewMode === 'week' && 'Week view. Highlighted days have jobs.'}
               {calendarViewMode === 'month' && 'Highlighted days have scheduled or active jobs. Click a date to view jobs.'}
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-wider text-gray-500">
+              <span className="inline-flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-sm bg-green-500" />
+                Installation
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
+                Service / Cleaning
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
+                TR19
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-sm bg-gray-500" />
+                Collections
+              </span>
+            </div>
           </div>
           <div className="flex rounded-xl bg-black border border-[#333333] p-0.5">
             {(['day', 'week', 'month'] as const).map((mode) => (
@@ -539,7 +583,7 @@ const AdminDashboardHome: React.FC = () => {
                       <Link
                         key={job.id}
                         to={`/jobs/${job.id}`}
-                        className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#111111] border border-[#333333] hover:border-[#F2C200] hover:bg-[#111111]/80 transition-colors group"
+                        className={`flex items-center justify-between px-3 py-2 hover:bg-[#111111]/80 group ${calendarJobClassName(job)}`}
                       >
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-white group-hover:text-[#F2C200] truncate">
@@ -631,7 +675,7 @@ const AdminDashboardHome: React.FC = () => {
                           <Link
                             key={job.id}
                             to={`/jobs/${job.id}`}
-                            className="block px-2 py-1 rounded bg-[#111111] border border-[#333333] hover:border-[#F2C200] text-[10px] font-bold text-white truncate"
+                            className={`block px-2 py-1 text-[10px] font-bold text-white truncate ${calendarJobClassName(job)}`}
                             title={job.customerName || job.title || job.id}
                           >
                             {job.customerName || job.title || 'Job'}
@@ -754,7 +798,7 @@ const AdminDashboardHome: React.FC = () => {
                       <Link
                         key={job.id}
                         to={`/jobs/${job.id}`}
-                        className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#111111] border border-[#333333] hover:border-[#F2C200] hover:bg-[#111111]/80 transition-colors group"
+                        className={`flex items-center justify-between px-3 py-2 hover:bg-[#111111]/80 group ${calendarJobClassName(job)}`}
                       >
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-white group-hover:text-[#F2C200] truncate">

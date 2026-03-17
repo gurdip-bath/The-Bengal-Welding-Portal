@@ -5,7 +5,8 @@ import { updateLead } from '../lib/leads';
 import type { LeadRow } from '../lib/leads';
 import { LOGO, BRAND_NAME } from '../constants';
 import { useOutletContext } from 'react-router-dom';
-import type { User } from '../types';
+import type { CustomerAttachment, CustomerAttachmentKind, User } from '../types';
+import { supabase } from '../lib/supabase';
 
 const AdminAddCustomer: React.FC = () => {
   const { user } = useOutletContext<{ user: User }>();
@@ -25,6 +26,9 @@ const AdminAddCustomer: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [attachmentWarning, setAttachmentWarning] = useState<string>('');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingUploading, setPendingUploading] = useState(false);
 
   useEffect(() => {
     if (fromLead) {
@@ -40,6 +44,7 @@ const AdminAddCustomer: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setAttachmentWarning('');
     setSuccess(false);
     if (!form.name.trim()) {
       setError('Please enter the customer name.');
@@ -68,6 +73,73 @@ const AdminAddCustomer: React.FC = () => {
             // non-blocking
           }
         }
+
+        // Optional: upload attachments after customer is created (never blocks creation)
+        if (result.user?.id && pendingFiles.length > 0) {
+          const CUSTOMER_ATTACHMENTS_BUCKET = 'customer-attachments';
+          const MAX_FILE_MB = 50;
+
+          const toAttachmentKind = (file: File): CustomerAttachmentKind => {
+            if (file.type === 'application/pdf') return 'pdf';
+            if (file.type.startsWith('image/')) return 'image';
+            if (file.type.startsWith('video/')) return 'video';
+            return 'file';
+          };
+
+          const safeFileName = (name: string) =>
+            name
+              .trim()
+              .replace(/[^\w.\- ]+/g, '')
+              .replace(/\s+/g, '-')
+              .slice(0, 120) || 'file';
+
+          const generateAttachmentPath = (customerId: string, fileName: string) => {
+            const cleaned = safeFileName(fileName);
+            const slug = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            return `${customerId}/${slug}-${cleaned}`;
+          };
+
+          setPendingUploading(true);
+          try {
+            const overLimit = pendingFiles.find((f) => f.size > MAX_FILE_MB * 1024 * 1024);
+            if (overLimit) {
+              throw new Error(`Each attachment must be ${MAX_FILE_MB} MB or smaller.`);
+            }
+            const created: CustomerAttachment[] = [];
+            for (const file of pendingFiles) {
+              const path = generateAttachmentPath(result.user.id, file.name);
+              const { error: uploadError } = await supabase.storage
+                .from(CUSTOMER_ATTACHMENTS_BUCKET)
+                .upload(path, file, { cacheControl: '3600', upsert: false });
+              if (uploadError) throw new Error(uploadError.message || 'Upload failed');
+              const { data } = supabase.storage.from(CUSTOMER_ATTACHMENTS_BUCKET).getPublicUrl(path);
+              created.push({
+                kind: toAttachmentKind(file),
+                path,
+                url: data.publicUrl,
+                name: file.name,
+                mime: file.type || undefined,
+                size: file.size || undefined,
+                uploadedAt: new Date().toISOString(),
+              });
+            }
+            const { error: saveError } = await supabase
+              .from('profiles')
+              .update({ attachments: created })
+              .eq('id', result.user.id);
+            if (saveError) throw new Error(saveError.message || 'Failed to save attachments');
+            setPendingFiles([]);
+          } catch (err) {
+            setAttachmentWarning(
+              err instanceof Error
+                ? `Customer created, but attachments failed: ${err.message}`
+                : 'Customer created, but attachments failed.'
+            );
+          } finally {
+            setPendingUploading(false);
+          }
+        }
+
         setSuccess(true);
         setForm({ name: '', email: '', phone: '', address: '' });
         if (fromLead) {
@@ -115,6 +187,12 @@ const AdminAddCustomer: React.FC = () => {
               Customer added. An email has been sent to them to set their password.
             </div>
           )}
+          {attachmentWarning && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-900/20 border border-amber-800/40 text-amber-300 text-sm font-bold">
+              <i className="fas fa-triangle-exclamation mr-2" />
+              {attachmentWarning}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -158,9 +236,32 @@ const AdminAddCustomer: React.FC = () => {
                 className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none"
               />
             </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Attachments (optional)</label>
+              <input
+                type="file"
+                multiple
+                accept="image/*,video/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                disabled={loading || pendingUploading}
+                onChange={(e) => {
+                  const files = e.target.files ? Array.from(e.target.files) : [];
+                  setPendingFiles(files);
+                }}
+                className="block w-full text-sm text-gray-300 file:mr-3 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-[#F2C200] file:text-black hover:file:brightness-110 cursor-pointer disabled:opacity-60"
+              />
+              <p className="mt-1 text-[10px] text-gray-500 font-bold">
+                {pendingFiles.length > 0 ? `${pendingFiles.length} file(s) selected` : 'You can add files now or later via Customers → Edit.'}
+              </p>
+              {pendingUploading && (
+                <p className="mt-1 text-[10px] text-gray-400 font-bold">
+                  <i className="fas fa-spinner fa-spin mr-2" />
+                  Uploading attachments...
+                </p>
+              )}
+            </div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || pendingUploading}
               className="w-full py-4 rounded-xl font-black uppercase tracking-widest bg-[#F2C200] text-black hover:brightness-110 disabled:opacity-70 transition-all"
             >
               {loading ? (

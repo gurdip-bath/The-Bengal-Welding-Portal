@@ -3,12 +3,13 @@
  */
 
 import { supabase } from './supabase';
-import type { User, UserRole } from '../types';
+import type { CustomerAttachment, User, UserRole } from '../types';
 
 export interface StoredUser extends User {
   password?: string;
   accountNumber?: string | null;
   productsCount?: number;
+  attachments?: CustomerAttachment[];
 }
 
 const USERS_CACHE_KEY = 'bengal_users_cache_v1';
@@ -165,7 +166,7 @@ export async function getAllUsers(): Promise<StoredUser[]> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, role, account_number, name, email, phone, address, products_count')
+    .select('id, role, account_number, name, email, phone, address, products_count, attachments')
     .order('account_number', { ascending: true, nullsFirst: false });
 
   if (error) throw new Error(error.message || 'Failed to load users');
@@ -182,6 +183,7 @@ export async function getAllUsers(): Promise<StoredUser[]> {
       address: (p.address as string) || undefined,
       accountNumber: (p.account_number as string) ?? null,
       productsCount: typeof p.products_count === 'number' ? p.products_count : 0,
+      attachments: Array.isArray(p.attachments) ? (p.attachments as CustomerAttachment[]) : [],
     };
   });
 

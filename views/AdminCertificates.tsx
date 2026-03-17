@@ -4,7 +4,7 @@ import { getSiteName, getJobIdentifierAndService, getSiteAddress, getJobService 
 import html2pdf from 'html2pdf.js';
 import { useAdmin } from '../contexts/AdminContext';
 import { Job } from '../types';
-import { TR19_REPORTS_STORAGE_KEY, type TR19Report } from './TR19ReportForm';
+import { getTR19Report, listTR19ReportJobIds, type TR19Report } from '../lib/tr19Reports';
 import {
   listInstallationSites,
   type InstallationSite,
@@ -60,7 +60,7 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
   externalCertificateFromReport,
   onCloseExternalCertificate,
 }) => {
-  const { jobs, setJobs, searchQuery, setSearchQuery, handleDeleteJob } = useAdmin();
+  const { jobs, setJobs, saveJob, refreshJobs, searchQuery, setSearchQuery, handleDeleteJob } = useAdmin();
   const location = useLocation();
   const navigate = useNavigate();
   const now = new Date();
@@ -69,6 +69,7 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
   const [editForm, setEditForm] = useState<EditCertificateForm | null>(null);
   const [certificateView, setCertificateView] = useState<EditCertificateForm | null>(null);
   const [certificateFromReport, setCertificateFromReport] = useState<{ job: Job; report: TR19Report } | null>(null);
+  const [jobsWithTR19, setJobsWithTR19] = useState<Set<string>>(new Set());
 
   const effectiveCertificateFromReport =
     externalCertificateFromReport !== undefined ? externalCertificateFromReport : certificateFromReport;
@@ -80,11 +81,17 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
     const viewJobId = (location.state as { viewReportJobId?: string })?.viewReportJobId;
     if (viewJobId && jobs.length) {
       const job = jobs.find((j) => j.id === viewJobId);
-      const reports = JSON.parse(localStorage.getItem(TR19_REPORTS_STORAGE_KEY) || '{}');
-      const report = reports[viewJobId];
-      if (job && report) {
-        setCertificateFromReport({ job, report });
-        navigate(location.pathname, { replace: true, state: {} });
+      if (job) {
+        getTR19Report(viewJobId)
+          .then((report) => {
+            if (report) {
+              setCertificateFromReport({ job, report });
+              navigate(location.pathname, { replace: true, state: {} });
+            }
+          })
+          .catch(() => {
+            // ignore
+          });
       }
     }
   }, [location.state, jobs, navigate, location.pathname]);
@@ -95,6 +102,12 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
       .catch(() => setSites([]));
   }, []);
 
+  useEffect(() => {
+    listTR19ReportJobIds(jobs.map((j) => j.id))
+      .then(setJobsWithTR19)
+      .catch(() => setJobsWithTR19(new Set()));
+  }, [jobs]);
+
   const uniqueSites = useMemo(() => {
     const fromJobs = jobs.map((j) => j.customerName).filter(Boolean) as string[];
     const fromSites = sites.map((s) => s.site_name).filter(Boolean);
@@ -103,20 +116,6 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
 
   const matchesSearch = (text?: string) =>
     !searchQuery || (text || '').toLowerCase().includes(searchQuery.toLowerCase());
-
-  const tr19Reports = useMemo(() => {
-    try {
-      const r = localStorage.getItem(TR19_REPORTS_STORAGE_KEY);
-      return r ? JSON.parse(r) : {};
-    } catch {
-      return {};
-    }
-  }, [jobs]);
-
-  const openCertificateFromReport = (job: Job) => {
-    const report = tr19Reports[job.id];
-    if (report) setCertificateFromReport({ job, report });
-  };
 
   const allCertificates = jobs
     .filter(
@@ -250,7 +249,11 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
     };
     const updated = [newJob, ...jobs];
     setJobs(updated);
-    localStorage.setItem('bengal_jobs', JSON.stringify(updated));
+    if (saveJob) {
+      saveJob(newJob);
+    } else if (refreshJobs) {
+      refreshJobs();
+    }
     closeNewCertificateModal();
   };
 
@@ -295,7 +298,12 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
         : j
     );
     setJobs(updated);
-    localStorage.setItem('bengal_jobs', JSON.stringify(updated));
+    const merged = updated.find((j) => j.id === editingJob.id);
+    if (merged && saveJob) {
+      saveJob(merged);
+    } else if (refreshJobs) {
+      refreshJobs();
+    }
     closeEditModal();
   };
 
@@ -305,13 +313,12 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
       alert('Please enter a Site Name.');
       return;
     }
-    const report = tr19Reports[editingJob.id];
-    if (!report) {
+    if (!jobsWithTR19.has(editingJob.id)) {
       alert('Complete the TR19 Report for this job before generating a certificate.');
       return;
     }
     handleSaveCertificate();
-    if (report) {
+    if (jobsWithTR19.has(editingJob.id)) {
       const [day, month, year] = editForm.jobDate.split('/');
       const warrantyEndDate = year && month && day ? `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}` : editingJob.warrantyEndDate;
       const parts = editForm.siteAddress.split(',').map((p) => p.trim()).filter(Boolean);
@@ -328,7 +335,13 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
         certificateNumber: editForm.certificateNumber,
       };
       closeEditModal();
-      setCertificateFromReport({ job: mergedJob, report });
+      getTR19Report(editingJob.id)
+        .then((report) => {
+          if (report) setCertificateFromReport({ job: mergedJob, report });
+        })
+        .catch(() => {
+          // ignore
+        });
     }
   };
 
@@ -381,7 +394,7 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
           </thead>
           <tbody className="divide-y divide-[#333333]">
             {allCertificates.map((job, index) => {
-              const hasTR19 = !!tr19Reports[job.id];
+              const hasTR19 = jobsWithTR19.has(job.id);
               const isOverdue = !hasTR19 && new Date(job.warrantyEndDate) < now && new Date(job.warrantyEndDate) > new Date(0);
               return (
                 <tr key={job.id} className="hover:bg-white/5">
@@ -429,14 +442,6 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2 flex-wrap">
-                      {tr19Reports[job.id] && (
-                        <button
-                          onClick={() => openCertificateFromReport(job)}
-                          className="text-[#0070ba] hover:text-[#005a94] text-xs font-bold"
-                        >
-                          View TR19 Report
-                        </button>
-                      )}
                       <button
                         onClick={() => openEditModal(job)}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs bg-[#333333] text-[#F2C200] hover:bg-[#F2C200] hover:text-black transition-all"
@@ -1118,10 +1123,10 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
               </button>
               <button
                 onClick={handleGenerateCertificate}
-                disabled={!editingJob || !tr19Reports[editingJob.id]}
-                title={editingJob && !tr19Reports[editingJob.id] ? 'Complete TR19 Report first' : undefined}
+                disabled={!editingJob || !jobsWithTR19.has(editingJob.id)}
+                title={editingJob && !jobsWithTR19.has(editingJob.id) ? 'Complete TR19 Report first' : undefined}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-colors shadow-lg ${
-                  editingJob && tr19Reports[editingJob.id]
+                  editingJob && jobsWithTR19.has(editingJob.id)
                     ? 'bg-[#F2C200] text-black hover:brightness-110 shadow-[#F2C2001A]'
                     : 'bg-[#333333] text-gray-500 cursor-not-allowed'
                 }`}

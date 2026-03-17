@@ -1,16 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const TR19_REPORT_LOG_KEY = 'bengal_tr19_report_log';
-
-interface ReportLogEntry {
-  id: string;
-  jobId: string;
-  reportRef: string;
-  jobTitle?: string;
-  customerName?: string;
-  generatedAt: string;
-}
+import { deleteTR19ReportLogEntry, listTR19ReportLog, type ReportLogEntry } from '../lib/tr19ReportLog';
 
 const AdminReportLog: React.FC = () => {
   const navigate = useNavigate();
@@ -18,17 +8,14 @@ const AdminReportLog: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(TR19_REPORT_LOG_KEY);
-      const parsed = stored ? JSON.parse(stored) : [];
-      setLogEntries(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setLogEntries([]);
-    }
+    listTR19ReportLog()
+      .then(setLogEntries)
+      .catch(() => setLogEntries([]));
   }, []);
 
   const matchesSearch = (e: ReportLogEntry) =>
     !searchQuery ||
+    (e.siteName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (e.jobTitle || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (e.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (e.jobId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -51,11 +38,9 @@ const AdminReportLog: React.FC = () => {
     if (!window.confirm(`Remove "${entry.reportRef}" from the TR19 PCVR log? This does not delete the report data.`)) return;
     const next = logEntries.filter((e) => e.id !== entry.id);
     setLogEntries(next);
-    try {
-      localStorage.setItem(TR19_REPORT_LOG_KEY, JSON.stringify(next));
-    } catch {
+    deleteTR19ReportLogEntry(entry.id).catch(() => {
       // ignore
-    }
+    });
   };
 
   return (
@@ -88,11 +73,11 @@ const AdminReportLog: React.FC = () => {
         </div>
 
         <div className="w-full overflow-x-auto overscroll-x-contain [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch]">
-          <table className="w-full text-left min-w-[600px]">
+          <table className="w-full text-left min-w-[700px]">
             <thead className="bg-black border-b border-[#333333]">
               <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Report</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Site / Job</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Report Ref</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Site</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Generated</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
@@ -101,12 +86,19 @@ const AdminReportLog: React.FC = () => {
               {filteredLog.map((entry) => (
                 <tr key={entry.id} className="hover:bg-white/5 transition-colors">
                   <td className="px-6 py-4">
-                    <p className="font-mono font-bold text-white text-sm">{entry.reportRef}</p>
-                    <p className="text-xs text-gray-500">{entry.jobId}</p>
+                    <p className="text-gray-300 font-mono text-sm font-bold">{entry.reportRef}</p>
+                    <p className="text-[10px] text-gray-600 mt-0.5">{entry.jobId}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="font-bold text-white">{entry.jobTitle || entry.customerName || '—'}</p>
-                    <p className="text-xs text-gray-500">{entry.customerName || '—'}</p>
+                    <div>
+                      <p className="text-white font-bold">{entry.siteName || entry.customerName || '—'}</p>
+                      <p className="text-xs text-gray-500">
+                        {(entry.jobTitle || '').trim()
+                          ? `${entry.jobId} • ${entry.jobTitle}`
+                          : entry.jobId}
+                      </p>
+                      <p className="text-[10px] text-gray-600 mt-0.5">{entry.customerName || '—'}</p>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-400">
                     {new Date(entry.generatedAt).toLocaleString('en-GB', {

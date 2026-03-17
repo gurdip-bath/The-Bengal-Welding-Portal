@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Job } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
-
-const SURVEYS_STORAGE_KEY = 'bengal_surveys';
+import { upsertTR19GreaseSurvey } from '../lib/tr19GreaseSurveys';
 
 interface Survey {
   id: string;
@@ -54,19 +53,7 @@ const AdminSurveyForm: React.FC = () => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   let job = jobs.find((j) => j.id === jobId);
-  if (!job && jobId) {
-    const surveys = JSON.parse(localStorage.getItem(SURVEYS_STORAGE_KEY) || '[]');
-    const survey = surveys.find((s: { jobId: string }) => s.jobId === jobId);
-    if (survey) {
-      job = {
-        id: survey.jobId,
-        title: survey.jobTitle,
-        customerName: survey.customerName,
-        customerAddress: survey.customerAddress,
-        customerPostcode: survey.postcode,
-      } as Job;
-    }
-  }
+  // No localStorage fallback: jobs come from Supabase for admin.
 
   const [siteDisplay, setSiteDisplay] = useState('');
   const [kitchenUse, setKitchenUse] = useState(KITCHEN_USE_OPTIONS[1]);
@@ -90,19 +77,9 @@ const AdminSurveyForm: React.FC = () => {
     }
   }, [job]);
 
-  const getSurveys = (): Survey[] => {
-    try {
-      const stored = localStorage.getItem(SURVEYS_STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const saveSurvey = (status: 'draft' | 'submitted') => {
+  const saveSurvey = async (status: 'draft' | 'submitted') => {
     if (!job) return;
     const surveyId = `SUR-${Date.now()}`;
-    const surveys = getSurveys();
     const newSurvey: Survey = {
       id: surveyId,
       jobId: job.id,
@@ -126,7 +103,7 @@ const AdminSurveyForm: React.FC = () => {
       status,
       submittedAt: status === 'submitted' ? new Date().toISOString() : undefined,
     };
-    localStorage.setItem(SURVEYS_STORAGE_KEY, JSON.stringify([newSurvey, ...surveys]));
+    await upsertTR19GreaseSurvey(newSurvey);
     navigate('/dashboard/jobs');
   };
 

@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { listSiteSurveys, deleteSiteSurvey } from '../lib/siteSurveys';
 import type { SiteSurvey } from '../lib/siteSurveys';
 import { useAdmin } from '../contexts/AdminContext';
-import { TR19_REPORTS_STORAGE_KEY, type TR19Report } from './TR19ReportForm';
+import type { TR19Report } from '../lib/tr19Reports';
+import { getTR19Report } from '../lib/tr19Reports';
 import type { Job } from '../types';
 
 function emptyReportForJob(jobId: string): TR19Report {
@@ -75,17 +76,15 @@ const AdminTR19: React.FC<AdminTR19Props> = ({ onOpenCertificate }) => {
       alert('Linked job not found. Please check the Linked Job on this TR19 site.');
       return;
     }
-    let reports: Record<string, TR19Report> = {};
-    try {
-      const raw = localStorage.getItem(TR19_REPORTS_STORAGE_KEY);
-      reports = raw ? JSON.parse(raw) : {};
-    } catch {
-      reports = {};
-    }
-    const report = reports[job.id] ?? emptyReportForJob(job.id);
-    if (onOpenCertificate) {
-      onOpenCertificate({ job, report });
-    }
+    getTR19Report(job.id)
+      .then((r) => {
+        const report = r ?? emptyReportForJob(job.id);
+        if (onOpenCertificate) onOpenCertificate({ job, report });
+      })
+      .catch(() => {
+        const report = emptyReportForJob(job.id);
+        if (onOpenCertificate) onOpenCertificate({ job, report });
+      });
   };
 
   return (

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { JobStatus, Job } from '../types';
 import { getAllUsers, registerEmployee } from '../lib/auth';
-import { listAllJobsForAdmin, deleteJob } from '../lib/jobs';
+import { listAllJobsForAdmin, deleteJob, upsertJob, updateCustomerFieldsForJobs, updateJob } from '../lib/jobs';
 import { AdminProvider } from '../contexts/AdminContext';
 import AdminLayout from '../components/AdminLayout';
 import { User } from '../types';
@@ -62,39 +62,23 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
   const [viewMode, setViewMode] = useState<'LIST' | 'CALENDAR'>('LIST');
 
   useEffect(() => {
-    const REMOVED_JOB_IDS = ['r1', 'r2']; // legacy mock jobs to permanently hide if present
-    const withoutRemoved = (arr: Job[]) => arr.filter((j) => !REMOVED_JOB_IDS.includes(j.id));
-
-    const savedJobs = localStorage.getItem('bengal_jobs');
-    if (!savedJobs) {
-      setJobs([]);
-      return;
-    }
+    // Admin data is Supabase-authoritative. Remove legacy local cache to prevent stale test data.
     try {
-      const raw = JSON.parse(savedJobs) as Job[];
-      const filtered = withoutRemoved(raw);
-      setJobs(filtered);
-      if (filtered.length !== raw.length) {
-        localStorage.setItem('bengal_jobs', JSON.stringify(filtered));
-      }
-    } catch {
-      setJobs([]);
       localStorage.removeItem('bengal_jobs');
+    } catch {
+      // ignore
     }
   }, []);
+
+  const refreshJobs = async () => {
+    const supabaseJobs = await listAllJobsForAdmin();
+    setJobs(supabaseJobs);
+  };
 
   useEffect(() => {
     const load = async () => {
       try {
-        const supabaseJobs = await listAllJobsForAdmin();
-        setJobs((prev) => {
-          const byId = new Map<string, Job>();
-          supabaseJobs.forEach((j) => byId.set(j.id, j));
-          prev.forEach((j) => {
-            if (!byId.has(j.id)) byId.set(j.id, j);
-          });
-          return Array.from(byId.values());
-        });
+        await refreshJobs();
       } catch {
         // Supabase may not be configured
       }
@@ -124,9 +108,10 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
   ).map(([_, data]) => data);
 
   const updateStatus = (id: string, newStatus: JobStatus) => {
-    const updated = jobs.map((j) => (j.id === id ? { ...j, status: newStatus } : j));
-    setJobs(updated);
-    localStorage.setItem('bengal_jobs', JSON.stringify(updated));
+    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status: newStatus } : j)));
+    updateJob(id, { status: newStatus }).catch(() => {
+      // If offline/misconfigured, revert is complex; next refresh will reconcile.
+    });
   };
 
   const copySignUpLink = (job: Job) => {
@@ -187,14 +172,12 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
     try {
       await deleteJob(id);
     } catch {
-      // Job may only exist in localStorage (mock/legacy data) – continue with local removal
+      // Ignore: UI will still remove; next refresh reconciles.
     }
-    const updated = jobs.filter((j) => j.id !== id);
-    setJobs(updated);
-    localStorage.setItem('bengal_jobs', JSON.stringify(updated));
+    setJobs((prev) => prev.filter((j) => j.id !== id));
   };
 
-  const handleSaveJob = () => {
+  const handleSaveJob = async () => {
     if (!jobForm.customerName) {
       alert('Please enter a Site Name.');
       return;
@@ -209,23 +192,30 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
     }
     const finalCustomerId = jobForm.customerId || `SITE-${Math.floor(Math.random() * 9000) + 1000}`;
 
-    let updatedJobs;
     if (editingJobId) {
-      updatedJobs = jobs.map((j) =>
-        j.id === editingJobId
-          ? ({ ...j, ...jobForm, customerId: finalCustomerId } as Job)
-          : j
-      );
+      const next = jobs.find((j) => j.id === editingJobId);
+      if (!next) return;
+      const merged = { ...next, ...jobForm, customerId: finalCustomerId } as Job;
+      setJobs((prev) => prev.map((j) => (j.id === editingJobId ? merged : j)));
+      try {
+        await upsertJob(merged);
+      } catch {
+        // ignore; next refresh reconciles
+      }
     } else {
       const newJob: Job = {
         ...jobForm,
         id: `J-${Math.floor(Math.random() * 10000)}`,
         customerId: finalCustomerId,
       } as Job;
-      updatedJobs = [newJob, ...jobs];
+      setJobs((prev) => [newJob, ...prev]);
+      try {
+        const saved = await upsertJob(newJob);
+        setJobs((prev) => prev.map((j) => (j.id === newJob.id ? saved : j)));
+      } catch {
+        // ignore; next refresh reconciles
+      }
     }
-    setJobs(updatedJobs);
-    localStorage.setItem('bengal_jobs', JSON.stringify(updatedJobs));
     setIsJobModalOpen(false);
   };
 
@@ -236,22 +226,32 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
     }
   };
 
-  const handleUpdateCustomer = () => {
+  const handleUpdateCustomer = async () => {
     if (!customerEditForm) return;
-    const updatedJobs = jobs.map((job) => {
-      if (job.customerId === customerEditForm.id) {
-        return {
-          ...job,
-          customerName: customerEditForm.name,
-          customerEmail: customerEditForm.email,
-          customerPhone: customerEditForm.phone,
-          customerAddress: customerEditForm.address,
-        };
-      }
-      return job;
-    });
-    setJobs(updatedJobs);
-    localStorage.setItem('bengal_jobs', JSON.stringify(updatedJobs));
+    setJobs((prev) =>
+      prev.map((job) =>
+        job.customerId === customerEditForm.id
+          ? {
+              ...job,
+              customerName: customerEditForm.name,
+              customerEmail: customerEditForm.email,
+              customerPhone: customerEditForm.phone,
+              customerAddress: customerEditForm.address,
+            }
+          : job
+      )
+    );
+    try {
+      await updateCustomerFieldsForJobs(customerEditForm.id, {
+        name: customerEditForm.name,
+        email: customerEditForm.email,
+        phone: customerEditForm.phone,
+        address: customerEditForm.address,
+      });
+      await refreshJobs();
+    } catch {
+      // ignore
+    }
     setSelectedCustomerDetail(customerEditForm);
     setIsEditCustomerModalOpen(false);
     alert('Customer contact details updated across all service records.');
@@ -324,6 +324,16 @@ const AdminWrapper: React.FC<AdminWrapperProps> = ({ user, onLogout }) => {
   const contextValue = {
     jobs,
     setJobs,
+    refreshJobs,
+    saveJob: async (job: Job) => {
+      try {
+        const saved = await upsertJob(job);
+        await refreshJobs();
+        return saved;
+      } catch {
+        return null;
+      }
+    },
     searchQuery,
     setSearchQuery,
     uniqueCustomers,
@@ -1102,11 +1112,11 @@ function WarrantyModal({
           </div>
           <button
             onClick={() => {
-              const updated = jobs.map((j) =>
-                j.id === job.id ? { ...j, startDate: warrantyStartDate, warrantyEndDate } : j
-              );
-              setJobs(updated);
-              localStorage.setItem('bengal_jobs', JSON.stringify(updated));
+              const merged = { ...job, startDate: warrantyStartDate, warrantyEndDate };
+              setJobs((prev) => prev.map((j) => (j.id === job.id ? merged : j)));
+              updateJob(job.id, { start_date: warrantyStartDate, warranty_end_date: warrantyEndDate }).catch(() => {
+                // ignore; next refresh reconciles
+              });
               onClose();
               alert('Warranty term updated successfully.');
             }}

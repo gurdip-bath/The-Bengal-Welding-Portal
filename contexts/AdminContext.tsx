@@ -13,6 +13,8 @@ interface CustomerProfile {
 interface AdminContextValue {
   jobs: Job[];
   setJobs: React.Dispatch<React.SetStateAction<Job[]>>;
+  refreshJobs?: () => Promise<void>;
+  saveJob?: (job: Job) => Promise<Job | null>;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   uniqueCustomers: CustomerProfile[];

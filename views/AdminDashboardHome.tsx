@@ -57,7 +57,8 @@ function getWeekDates(weekStartStr: string): string[] {
 type CalendarViewMode = 'day' | 'week' | 'month';
 
 const AdminDashboardHome: React.FC = () => {
-  const { jobs, setJobs, openAddJobModal, openAddSiteTypeModal } = useAdmin();
+  const { jobs, setJobs, saveJob, refreshJobs, openAddJobModal, openAddSiteTypeModal } = useAdmin();
+  const [installationSiteIds, setInstallationSiteIds] = useState<string[]>([]);
   const [scheduledMap, setScheduledMap] = useState<Record<string, ScheduledRenewal>>(() => {
     try {
       const stored = localStorage.getItem(SCHEDULED_STORAGE_KEY);
@@ -88,6 +89,8 @@ const AdminDashboardHome: React.FC = () => {
     'Ductwork Inspection & Report',
     'Fire Safety Compliance Check',
     'Full Kitchen Extract Deep Clean',
+    'Kitchen Installations',
+    'Service Work',
   ];
 
   const START_TIMES = Array.from({ length: 48 }, (_, i) => {
@@ -108,7 +111,10 @@ const AdminDashboardHome: React.FC = () => {
 
   useEffect(() => {
     listInstallationSites()
-      .then((sites) => setSiteCount(sites.length))
+      .then((sites) => {
+        setSiteCount(sites.length);
+        setInstallationSiteIds(sites.map((s) => s.id));
+      })
       .catch(() => setSiteCount(0));
   }, []);
 
@@ -123,6 +129,8 @@ const AdminDashboardHome: React.FC = () => {
   });
   const getPostcode = (job: Job) =>
     job.customerPostcode || (job.customerAddress ? job.customerAddress.split(',').pop()?.trim() || '' : '');
+
+  const installationSiteIdSet = useMemo(() => new Set(installationSiteIds), [installationSiteIds]);
 
   const tr19Reports = useMemo(() => {
     try {
@@ -158,13 +166,23 @@ const AdminDashboardHome: React.FC = () => {
   const dueSoonJobsDisplay = dueSoonJobs.filter((j) => !jobsWithCompletedTR19.has(j.id));
 
   const overdueSiteCount = useMemo(
-    () => new Set(overdueJobsDisplay.map((j) => j.customerId || j.id)).size,
-    [overdueJobsDisplay]
+    () =>
+      new Set(
+        overdueJobsDisplay
+          .map((j) => j.customerId)
+          .filter((id): id is string => !!id && installationSiteIdSet.has(id))
+      ).size,
+    [overdueJobsDisplay, installationSiteIdSet]
   );
 
   const dueSoonSiteCount = useMemo(
-    () => new Set(dueSoonJobsDisplay.map((j) => j.customerId || j.id)).size,
-    [dueSoonJobsDisplay]
+    () =>
+      new Set(
+        dueSoonJobsDisplay
+          .map((j) => j.customerId)
+          .filter((id): id is string => !!id && installationSiteIdSet.has(id))
+      ).size,
+    [dueSoonJobsDisplay, installationSiteIdSet]
   );
 
   const recentCertificates = jobs
@@ -1153,7 +1171,7 @@ const AdminDashboardHome: React.FC = () => {
                 Cancel
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   const newValue = parseFloat(contractValueInput) || 0;
                   if (scheduleSite && jobDate) {
                     const existingJob = jobs.find((j) => j.id === scheduleSite.id);
@@ -1190,12 +1208,15 @@ const AdminDashboardHome: React.FC = () => {
                         } as Job);
                     setJobs((prev) => {
                       const idx = prev.findIndex((j) => j.id === scheduleSite.id);
-                      const updated = idx >= 0
+                      return idx >= 0
                         ? prev.map((j) => (j.id === scheduleSite.id ? updatedJob : j))
                         : [updatedJob, ...prev];
-                      localStorage.setItem('bengal_jobs', JSON.stringify(updated));
-                      return updated;
                     });
+                    if (saveJob) {
+                      await saveJob(updatedJob);
+                    } else if (refreshJobs) {
+                      await refreshJobs();
+                    }
                     setScheduledMap((prev) => ({
                       ...prev,
                       [scheduleSite.id]: {

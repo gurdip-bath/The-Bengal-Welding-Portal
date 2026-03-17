@@ -16,7 +16,7 @@ const MAX_MEDIA_FILES = 10;
 const MAX_FILE_MB = 10;
 
 const AdminSites: React.FC = () => {
-  const { jobs, setJobs } = useAdmin();
+  const { jobs, setJobs, saveJob, refreshJobs } = useAdmin();
   const location = useLocation();
   const [sites, setSites] = useState<InstallationSite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +65,8 @@ const AdminSites: React.FC = () => {
     'Ductwork Inspection & Report',
     'Fire Safety Compliance Check',
     'Full Kitchen Extract Deep Clean',
+    'Kitchen Installations',
+    'Service Work',
   ];
 
   const START_TIMES = Array.from({ length: 48 }, (_, i) => {
@@ -134,6 +136,8 @@ const AdminSites: React.FC = () => {
     [tr19Reports]
   );
 
+  const installationSiteIdSet = useMemo(() => new Set<string>(sites.map((s) => s.id)), [sites]);
+
   const overdueJobsForFilter = useMemo(
     () =>
       jobs.filter((j) => {
@@ -165,13 +169,23 @@ const AdminSites: React.FC = () => {
   );
 
   const overdueSiteIds = useMemo(
-    () => new Set<string>(overdueJobsForFilter.map((j) => j.customerId || j.id)),
-    [overdueJobsForFilter]
+    () =>
+      new Set<string>(
+        overdueJobsForFilter
+          .map((j) => j.customerId)
+          .filter((id): id is string => !!id && installationSiteIdSet.has(id))
+      ),
+    [overdueJobsForFilter, installationSiteIdSet]
   );
 
   const dueSoonSiteIds = useMemo(
-    () => new Set<string>(dueSoonJobsForFilter.map((j) => j.customerId || j.id)),
-    [dueSoonJobsForFilter]
+    () =>
+      new Set<string>(
+        dueSoonJobsForFilter
+          .map((j) => j.customerId)
+          .filter((id): id is string => !!id && installationSiteIdSet.has(id))
+      ),
+    [dueSoonJobsForFilter, installationSiteIdSet]
   );
 
   const filteredSites = sites.filter((s) => {
@@ -364,7 +378,7 @@ const AdminSites: React.FC = () => {
     setScheduleModalOpen(true);
   };
 
-  const createJobsForRange = () => {
+  const createJobsForRange = async () => {
     if (!scheduleSite) return;
     if (!startDate || !endDate) {
       setScheduleError('Please choose both a start date and an end date.');
@@ -379,32 +393,36 @@ const AdminSites: React.FC = () => {
     const startStr = start.toISOString().slice(0, 10);
     const endStr = end.toISOString().slice(0, 10);
 
-    setJobs((prev) => {
-      const updated: Job[] = [...prev];
-      const id = `${scheduleSite.id}-${startStr}-${endStr}-${Math.random().toString(36).slice(2, 8)}`;
-      const job: Job = {
-        id,
-        title: `${scheduleSite.site_name} — ${jobType}`,
-        description: jobType,
-        customerId: scheduleSite.id,
-        customerName: scheduleSite.site_name,
-        customerAddress: scheduleSite.address,
-        customerPostcode: scheduleSite.postcode,
-        contactName: scheduleSite.contact_name,
-        status: 'PENDING',
-        startDate: startStr,
-        warrantyEndDate: endStr,
-        scheduledCleanDate: startStr,
-        paymentStatus: 'UNPAID',
-        amount: 0,
-        startTime,
-        jobType,
-        leadOperative: 'ZAKEE — zakee.hussain@outlook.com',
-      };
-      updated.unshift(job);
-      localStorage.setItem('bengal_jobs', JSON.stringify(updated));
-      return updated;
-    });
+    const id = `${scheduleSite.id}-${startStr}-${endStr}-${Math.random().toString(36).slice(2, 8)}`;
+    const job: Job = {
+      id,
+      title: `${scheduleSite.site_name} — ${jobType}`,
+      description: jobType,
+      customerId: scheduleSite.id,
+      customerName: scheduleSite.site_name,
+      customerAddress: scheduleSite.address,
+      customerPostcode: scheduleSite.postcode,
+      contactName: scheduleSite.contact_name,
+      status: 'PENDING',
+      startDate: startStr,
+      warrantyEndDate: endStr,
+      scheduledCleanDate: startStr,
+      paymentStatus: 'UNPAID',
+      amount: 0,
+      startTime,
+      jobType,
+      leadOperative: 'ZAKEE — zakee.hussain@outlook.com',
+    };
+    setJobs((prev) => [job, ...prev]);
+    try {
+      if (saveJob) {
+        await saveJob(job);
+      } else if (refreshJobs) {
+        await refreshJobs();
+      }
+    } catch {
+      // ignore; next refresh reconciles
+    }
     setScheduleModalOpen(false);
     setScheduleSite(null);
     setScheduleError(null);

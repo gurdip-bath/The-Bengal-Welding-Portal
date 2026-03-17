@@ -21,12 +21,18 @@ function rowToJob(r: Record<string, unknown>): Job {
     status: (r.status as Job['status']) || 'PENDING',
     startDate: (r.start_date as string) || '',
     warrantyEndDate: (r.warranty_end_date as string) || '',
+    scheduledCleanDate: (r.scheduled_clean_date as string) || undefined,
     paymentStatus: (r.payment_status as Job['paymentStatus']) || 'UNPAID',
     amount: Number(r.amount) || 0,
     startTime: (r.start_time as string) || undefined,
     duration: (r.duration as number) || undefined,
     jobType: (r.job_type as string) || undefined,
     leadOperative: (r.lead_operative as string) || undefined,
+    certificateNumber: (r.certificate_number as string) || undefined,
+    technician: (r.technician as string) || undefined,
+    greaseRating: (r.grease_rating as string) || undefined,
+    ductLength: (r.duct_length as string) || undefined,
+    tr19Compliant: (r.tr19_compliant as boolean) ?? undefined,
     accessDifficulty: (r.access_difficulty as Job['accessDifficulty']) || undefined,
     applianceLocation: (r.appliance_location as string) || undefined,
     accessInstructions: (r.access_instructions as string) || undefined,
@@ -34,6 +40,44 @@ function rowToJob(r: Record<string, unknown>): Job {
     ppeRequired: (r.ppe_required as string) || undefined,
     isGasAppliance: r.is_gas_appliance === true,
     garCode: (r.gar_code as string) || undefined,
+  };
+}
+
+function jobToRow(job: Job): Record<string, unknown> {
+  return {
+    id: job.id,
+    title: job.title,
+    description: job.description || null,
+    customer_id: job.customerId,
+    customer_name: job.customerName || null,
+    customer_email: job.customerEmail || null,
+    customer_phone: job.customerPhone || null,
+    customer_address: job.customerAddress || null,
+    customer_postcode: job.customerPostcode || null,
+    contact_name: job.contactName || null,
+    frequency: job.frequency || null,
+    status: job.status,
+    start_date: job.startDate || null,
+    warranty_end_date: job.warrantyEndDate || null,
+    scheduled_clean_date: job.scheduledCleanDate || null,
+    payment_status: job.paymentStatus,
+    amount: typeof job.amount === 'number' ? job.amount : Number(job.amount) || 0,
+    start_time: job.startTime || null,
+    duration: job.duration ?? null,
+    job_type: job.jobType || null,
+    lead_operative: job.leadOperative || null,
+    certificate_number: job.certificateNumber || null,
+    technician: job.technician || null,
+    grease_rating: job.greaseRating || null,
+    duct_length: job.ductLength || null,
+    tr19_compliant: job.tr19Compliant ?? null,
+    access_difficulty: job.accessDifficulty || null,
+    appliance_location: job.applianceLocation || null,
+    access_instructions: job.accessInstructions || null,
+    equipment_required: job.equipmentRequired || null,
+    ppe_required: job.ppeRequired || null,
+    is_gas_appliance: job.isGasAppliance === true,
+    gar_code: job.garCode || null,
   };
 }
 
@@ -162,4 +206,34 @@ export async function deleteJob(id: string): Promise<void> {
     .eq('id', id);
 
   if (error) throw new Error(error.message || 'Failed to delete job');
+}
+
+/** Create or update a job row (admin-authoritative). */
+export async function upsertJob(job: Job): Promise<Job> {
+  const row = jobToRow(job);
+  const { data, error } = await supabase
+    .from('jobs')
+    .upsert(row, { onConflict: 'id' })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message || 'Failed to save job');
+  return rowToJob(data as Record<string, unknown>);
+}
+
+export async function updateCustomerFieldsForJobs(
+  customerId: string,
+  updates: { name: string; email: string; phone: string; address: string }
+): Promise<void> {
+  const { error } = await supabase
+    .from('jobs')
+    .update({
+      customer_name: updates.name,
+      customer_email: updates.email,
+      customer_phone: updates.phone,
+      customer_address: updates.address,
+    })
+    .eq('customer_id', customerId);
+
+  if (error) throw new Error(error.message || 'Failed to update customer details');
 }

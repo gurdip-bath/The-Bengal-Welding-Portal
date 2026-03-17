@@ -3,8 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext';
 import { Job } from '../types';
 import { getSiteName, getJobIdentifierAndService } from '../utils/jobIdentity';
+import { getTR19Report, upsertTR19Report } from '../lib/tr19Reports';
+import { addTR19ReportLogEntry } from '../lib/tr19ReportLog';
+import { getLatestSubmittedTR19GreaseSurveyForJob } from '../lib/tr19GreaseSurveys';
 
-const SURVEYS_STORAGE_KEY = 'bengal_surveys';
+// Legacy key (pre-Supabase). Kept only for backward-compat exports.
 const TR19_REPORTS_STORAGE_KEY = 'bengal_tr19_reports';
 
 interface MicronReading {
@@ -30,6 +33,7 @@ interface TR19Report {
   nextRecommendedCleanDate?: string;
 }
 
+// Legacy key (pre-Supabase).
 const TR19_REPORT_LOG_KEY = 'bengal_tr19_report_log';
 
 const DEFAULT_LOCATIONS = [
@@ -70,48 +74,13 @@ function resolveJob(jobId: string | undefined, jobsFromContext: Job[]): Job | nu
   } catch {
     // ignore
   }
-  try {
-    const log = JSON.parse(localStorage.getItem(TR19_REPORT_LOG_KEY) || '[]') as Array<{ jobId: string; jobTitle?: string; customerName?: string }>;
-    const entry = log.find((e) => e.jobId === jobId);
-    if (entry) {
-      return {
-        id: jobId,
-        title: entry.jobTitle || 'TR19 Report',
-        description: '',
-        customerId: '',
-        customerName: entry.customerName || '—',
-        status: 'COMPLETED',
-        startDate: new Date().toISOString().split('T')[0],
-        warrantyEndDate: new Date().toISOString().split('T')[0],
-        paymentStatus: 'UNPAID',
-        amount: 0,
-      } as Job;
-    }
-  } catch {
-    // ignore
-  }
-  const reports = JSON.parse(localStorage.getItem(TR19_REPORTS_STORAGE_KEY) || '{}') as Record<string, unknown>;
-  if (reports[jobId]) {
-    return {
-      id: jobId,
-      title: 'TR19 Report',
-      description: '',
-      customerId: '',
-      customerName: '—',
-      status: 'COMPLETED',
-      startDate: new Date().toISOString().split('T')[0],
-      warrantyEndDate: new Date().toISOString().split('T')[0],
-      paymentStatus: 'UNPAID',
-      amount: 0,
-    } as Job;
-  }
   return null;
 }
 
 const AdminTR19ReportForm: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { jobs, setJobs } = useAdmin();
+  const { jobs, setJobs, saveJob } = useAdmin();
   const [step, setStep] = useState(1);
 
   const job = resolveJob(jobId, jobs);
@@ -132,26 +101,39 @@ const AdminTR19ReportForm: React.FC = () => {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
-    const surveys = JSON.parse(localStorage.getItem(SURVEYS_STORAGE_KEY) || '[]');
-    const survey = surveys.find((s: { jobId: string }) => s.jobId === jobId);
-    if (survey?.photos?.length) setSurveyPhotos(survey.photos);
+    if (!jobId) return;
+    getLatestSubmittedTR19GreaseSurveyForJob(jobId)
+      .then((s) => {
+        if (s?.photos?.length) setSurveyPhotos(s.photos);
+      })
+      .catch(() => {
+        // ignore
+      });
   }, [jobId]);
 
   useEffect(() => {
-    const reports = JSON.parse(localStorage.getItem(TR19_REPORTS_STORAGE_KEY) || '{}');
-    const existing = reports[jobId || ''] as TR19Report | undefined;
-    if (existing) {
-      setLeadOperativeName(existing.leadOperativeName || '');
-      setBesaCertNo(existing.besaCertNo || '');
-      setSecondOperativeName(existing.secondOperativeName || '');
-      setSecondOpCertNo(existing.secondOpCertNo || '');
-      setTimeOnSiteStart(existing.timeOnSiteStart || '08:00');
-      setTimeOnSiteEnd(existing.timeOnSiteEnd || '16:00');
-      setMicronReadings(existing.micronReadings?.length ? existing.micronReadings : DEFAULT_LOCATIONS.map((loc) => ({ location: loc, preClean: '', postClean: '' })));
-      setCleaningMethods(existing.cleaningMethods || []);
-      setAreasCleaned(existing.areasCleaned || []);
-      setNextRecommendedCleanDate(existing.nextRecommendedCleanDate || '');
-    }
+    if (!jobId) return;
+    getTR19Report(jobId)
+      .then((existing) => {
+        if (!existing) return;
+        setLeadOperativeName(existing.leadOperativeName || '');
+        setBesaCertNo(existing.besaCertNo || '');
+        setSecondOperativeName(existing.secondOperativeName || '');
+        setSecondOpCertNo(existing.secondOpCertNo || '');
+        setTimeOnSiteStart(existing.timeOnSiteStart || '08:00');
+        setTimeOnSiteEnd(existing.timeOnSiteEnd || '16:00');
+        setMicronReadings(
+          existing.micronReadings?.length
+            ? existing.micronReadings
+            : DEFAULT_LOCATIONS.map((loc) => ({ location: loc, preClean: '', postClean: '' }))
+        );
+        setCleaningMethods(existing.cleaningMethods || []);
+        setAreasCleaned(existing.areasCleaned || []);
+        setNextRecommendedCleanDate(existing.nextRecommendedCleanDate || '');
+      })
+      .catch(() => {
+        // ignore
+      });
   }, [jobId]);
 
   const getDefaultNextCleanDate = () => {
@@ -176,7 +158,7 @@ const AdminTR19ReportForm: React.FC = () => {
   const TOTAL_STEPS = 4;
   const getProgress = () => (step / TOTAL_STEPS) * 100;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!jobId || !job) return;
     const signedAt = new Date().toISOString().split('T')[0];
     const reportRef = `TR19-2026-${jobId.slice(-6).toUpperCase()}`;
@@ -196,20 +178,19 @@ const AdminTR19ReportForm: React.FC = () => {
       signedAt,
       nextRecommendedCleanDate: nextRecommendedCleanDate || getDefaultNextCleanDate(),
     };
-    const reports = JSON.parse(localStorage.getItem(TR19_REPORTS_STORAGE_KEY) || '{}');
-    reports[jobId] = report;
-    localStorage.setItem(TR19_REPORTS_STORAGE_KEY, JSON.stringify(reports));
+    await upsertTR19Report(jobId, report);
 
     const logEntry = {
-      id: `LOG-${Date.now()}`,
       jobId,
       reportRef,
+      siteName: job.customerName,
       jobTitle: job.title || job.customerName,
       customerName: job.customerName,
       generatedAt: new Date().toISOString(),
     };
-    const log = JSON.parse(localStorage.getItem(TR19_REPORT_LOG_KEY) || '[]');
-    localStorage.setItem(TR19_REPORT_LOG_KEY, JSON.stringify([logEntry, ...log]));
+    addTR19ReportLogEntry(logEntry).catch(() => {
+      // ignore
+    });
 
     const preMean = micronReadings
       .filter((r) => r.preClean && !isNaN(parseFloat(r.preClean)))
@@ -236,10 +217,9 @@ const AdminTR19ReportForm: React.FC = () => {
       if (prev.some((j) => j.id === jobId)) return prev.map((j) => (j.id === jobId ? updatedJob : j));
       return [updatedJob, ...prev];
     });
-    const localJobs = JSON.parse(localStorage.getItem(JOBS_STORAGE_KEY) || '[]');
-    const idx = localJobs.findIndex((j: { id: string }) => j.id === jobId);
-    const updated = idx >= 0 ? localJobs.map((j: { id: string }) => (j.id === jobId ? updatedJob : j)) : [updatedJob, ...localJobs];
-    localStorage.setItem(JOBS_STORAGE_KEY, JSON.stringify(updated));
+    if (saveJob) {
+      saveJob(updatedJob);
+    }
 
     navigate('/dashboard/certificates', { state: { viewReportJobId: jobId } });
   };

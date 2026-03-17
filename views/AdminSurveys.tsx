@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext';
 import { listSiteSurveys, deleteSiteSurvey } from '../lib/siteSurveys';
 import type { SiteSurvey } from '../lib/siteSurveys';
-
-const SURVEYS_STORAGE_KEY = 'bengal_surveys';
+import { deleteTR19GreaseSurvey, listTR19GreaseSurveys } from '../lib/tr19GreaseSurveys';
 
 interface Survey {
   id: string;
@@ -29,13 +28,9 @@ const AdminSurveys: React.FC = () => {
   const [quotePrice, setQuotePrice] = useState('');
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SURVEYS_STORAGE_KEY);
-      const parsed = stored ? JSON.parse(stored) : [];
-      setSurveys(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setSurveys([]);
-    }
+    listTR19GreaseSurveys()
+      .then(setSurveys)
+      .catch(() => setSurveys([]));
   }, []);
 
   useEffect(() => {
@@ -65,7 +60,9 @@ const AdminSurveys: React.FC = () => {
     if (!window.confirm('Delete this survey?')) return;
     const updated = surveys.filter((s) => s.id !== surveyId);
     setSurveys(updated);
-    localStorage.setItem(SURVEYS_STORAGE_KEY, JSON.stringify(updated));
+    deleteTR19GreaseSurvey(surveyId).catch(() => {
+      // ignore
+    });
   };
 
   const openQuoteModal = (survey: Survey) => {

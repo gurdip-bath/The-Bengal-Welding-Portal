@@ -769,7 +769,7 @@ const AdminDashboardHome: React.FC = () => {
             {renewalItems.slice(0, 6).map((item) => (
               <Link
                 key={item.id}
-                to={`/jobs/${item.id}`}
+                to="/dashboard/sites"
                 className="flex items-center justify-between p-4 hover:bg-white/5 transition-colors group"
               >
                 <div className="flex items-center gap-4 min-w-0">

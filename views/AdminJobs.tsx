@@ -10,7 +10,7 @@ const TR19_REPORTS_STORAGE_KEY = 'bengal_tr19_reports';
 type StatusFilter = JobStatus | 'ALL';
 
 const AdminJobs: React.FC = () => {
-  const { jobs, searchQuery, setSearchQuery, handleDeleteJob, openAddJobModal, openEditJobModal } = useAdmin();
+  const { jobs, searchQuery, setSearchQuery, handleDeleteJob, openAddJobModal, openEditJobModal, openAddSiteTypeModal } = useAdmin();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
 
@@ -37,8 +37,15 @@ const AdminJobs: React.FC = () => {
 
   const jobHasTR19Report = (jobId: string) => !!tr19Reports[jobId];
 
+  const isTR19Job = (job: Job) => {
+    const jobType = (job.jobType || '').toLowerCase();
+    const title = (job.title || '').toLowerCase();
+    // Keep historical TR19 records visible even if legacy jobs lack explicit TR19 labels.
+    return jobType.includes('tr19') || title.includes('tr19') || jobHasTR19Report(job.id);
+  };
+
   const jobsNeedingReport = jobs.filter(
-    (j) => jobHasSubmittedSurvey(j.id) && !jobHasTR19Report(j.id)
+    (j) => isTR19Job(j) && jobHasSubmittedSurvey(j.id) && !jobHasTR19Report(j.id)
   );
 
   const matchesSearch = (text?: string) =>
@@ -117,10 +124,10 @@ const AdminJobs: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={openAddJobModal}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-[#F2C200] text-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[#F2C2001A] shrink-0"
+            onClick={() => (openAddSiteTypeModal ? openAddSiteTypeModal() : openAddJobModal())}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-[#111111] border border-[#333333] text-gray-300 hover:border-[#F2C200] hover:text-white transition-all shrink-0"
           >
-            <i className="fas fa-plus"></i>
+            <i className="fas fa-building-user"></i>
             <span>Add Job</span>
           </button>
         </div>

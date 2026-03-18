@@ -117,7 +117,15 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
   const matchesSearch = (text?: string) =>
     !searchQuery || (text || '').toLowerCase().includes(searchQuery.toLowerCase());
 
+  const isTR19Job = (job: Job) => {
+    const jobType = (job.jobType || '').toLowerCase();
+    const title = (job.title || '').toLowerCase();
+    // Keep historical TR19 records visible even if legacy jobs lack explicit TR19 labels.
+    return jobType.includes('tr19') || title.includes('tr19') || jobsWithTR19.has(job.id);
+  };
+
   const allCertificates = jobs
+    .filter((j) => isTR19Job(j))
     .filter(
       (j) => {
         const certNum = (j as Job & { certificateNumber?: string }).certificateNumber;

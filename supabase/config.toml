@@ -15,3 +15,6 @@ verify_jwt = false
 
 [functions.create-customer]
 verify_jwt = false
+
+[functions.update-customer]
+verify_jwt = false

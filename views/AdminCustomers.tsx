@@ -338,10 +338,6 @@ const AdminCustomers: React.FC = () => {
       setEditCustomerError('Please enter the customer name.');
       return;
     }
-    if (!editCustomerForm.email.trim()) {
-      setEditCustomerError('Please enter the customer email.');
-      return;
-    }
 
     setEditCustomerSaving(true);
     setEditCustomerError(null);
@@ -364,7 +360,8 @@ const AdminCustomers: React.FC = () => {
             ? {
                 ...c,
                 name: editCustomerForm.name.trim(),
-                email: editCustomerForm.email.trim(),
+                // If email is left blank, keep existing email in the UI until refresh.
+                email: editCustomerForm.email.trim() ? editCustomerForm.email.trim() : c.email,
                 phone: editCustomerForm.phone.trim() || undefined,
                 address: editCustomerForm.address.trim() || undefined,
               }
@@ -376,7 +373,7 @@ const AdminCustomers: React.FC = () => {
           ? {
               ...prev,
               name: editCustomerForm.name.trim(),
-              email: editCustomerForm.email.trim(),
+              email: editCustomerForm.email.trim() ? editCustomerForm.email.trim() : prev.email,
               phone: editCustomerForm.phone.trim() || undefined,
               address: editCustomerForm.address.trim() || undefined,
             }
@@ -557,7 +554,7 @@ const AdminCustomers: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <section className="lg:col-span-3 bg-[#111111] rounded-2xl border border-[#333333] overflow-x-auto">
+        <section className="lg:col-span-3 bg-[#111111] rounded-2xl border border-[#333333] overflow-x-auto overflow-y-auto max-h-[calc(100dvh-260px)]">
           {loading ? (
             <div className="p-10 text-center text-gray-500 font-bold text-sm">Loading customers...</div>
           ) : error ? (
@@ -903,7 +900,7 @@ const AdminCustomers: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Email *</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Email (optional)</label>
                 <input
                   type="email"
                   value={editCustomerForm.email}

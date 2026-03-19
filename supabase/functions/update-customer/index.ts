@@ -25,7 +25,9 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseServiceKey) return json(500, { error: "Server misconfiguration" });
 
-    const token = authHeader.replace("Bearer ", "").trim();
+    // Header value can be `Bearer <jwt>` with varying casing/spacing.
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) return json(401, { error: "Unauthorized" });
     const admin = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
     const { data: { user }, error: userError } = await admin.auth.getUser(token);
     if (userError || !user) return json(401, { error: "Invalid token" });
@@ -45,13 +47,12 @@ Deno.serve(async (req) => {
 
     const name = String(body.name ?? "").trim();
     const emailRaw = String(body.email ?? "").trim();
+    const emailProvided = emailRaw.length > 0;
     const phone = String(body.phone ?? "").trim();
     const address = String(body.address ?? "").trim();
 
     if (!name) return json(400, { error: "Missing name" });
-    if (!emailRaw) return json(400, { error: "Missing email" });
-
-    const email = emailRaw.toLowerCase();
+    const email = emailProvided ? emailRaw.toLowerCase() : null;
 
     const { data: existing, error: existingErr } = await admin.auth.admin.getUserById(userId);
     if (existingErr || !existing?.user) return json(404, { error: "User not found" });
@@ -64,33 +65,32 @@ Deno.serve(async (req) => {
       address,
     };
 
-    const { data: updated, error: updateErr } = await admin.auth.admin.updateUserById(userId, {
-      email,
+    const updateAuthPayload: Record<string, unknown> = {
       user_metadata: nextMeta,
-    });
+    };
+    if (emailProvided) updateAuthPayload.email = email;
+
+    const { data: updated, error: updateErr } = await admin.auth.admin.updateUserById(userId, updateAuthPayload);
     if (updateErr) return json(400, { error: updateErr.message });
 
     // Keep profiles in sync (fast admin listing) + job rows in sync.
-    await admin
-      .from("profiles")
-      .update({ name, email, phone, address })
-      .eq("id", userId);
+    const profileUpdate: Record<string, unknown> = { name, phone, address };
+    if (emailProvided) profileUpdate.email = email;
+    await admin.from("profiles").update(profileUpdate).eq("id", userId);
 
     // Keep job rows in sync for any "customer contact details" stored on jobs.
-    await admin
-      .from("jobs")
-      .update({
-        customer_name: name,
-        customer_email: email,
-        customer_phone: phone,
-        customer_address: address,
-      })
-      .eq("customer_id", userId);
+    const jobUpdate: Record<string, unknown> = {
+      customer_name: name,
+      customer_phone: phone,
+      customer_address: address,
+    };
+    if (emailProvided) jobUpdate.customer_email = email;
+    await admin.from("jobs").update(jobUpdate).eq("customer_id", userId);
 
     return json(200, {
       user: {
         id: updated.user.id,
-        email: updated.user.email,
+        email: updated.user.email ?? "",
         user_metadata: updated.user.user_metadata,
       },
     });

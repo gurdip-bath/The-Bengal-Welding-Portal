@@ -14,6 +14,8 @@ import { supabase } from '../lib/supabase';
 
 const MAX_MEDIA_FILES = 10;
 const MAX_FILE_MB = 10;
+type SiteStatus = 'OVERDUE' | 'DUE_SOON' | 'ACTIVE_SITE';
+const SITE_STATUS_OVERRIDES_KEY = 'bengal_site_status_overrides';
 
 const AdminSites: React.FC = () => {
   const { jobs, setJobs, saveJob, refreshJobs } = useAdmin();
@@ -61,6 +63,16 @@ const AdminSites: React.FC = () => {
     const value = params.get('filter');
     if (value === 'overdue' || value === 'due-soon') return value;
     return 'all';
+  });
+  const [siteStatusOverrides, setSiteStatusOverrides] = useState<Record<string, SiteStatus>>(() => {
+    try {
+      const raw = localStorage.getItem(SITE_STATUS_OVERRIDES_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as Record<string, SiteStatus>;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
   });
 
   const JOB_TYPES = [
@@ -110,6 +122,14 @@ const AdminSites: React.FC = () => {
       setSiteFilter('all');
     }
   }, [location.search]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SITE_STATUS_OVERRIDES_KEY, JSON.stringify(siteStatusOverrides));
+    } catch {
+      // ignore
+    }
+  }, [siteStatusOverrides]);
 
   const matchesSearch = (s: InstallationSite) =>
     !searchQuery ||
@@ -198,10 +218,57 @@ const AdminSites: React.FC = () => {
     return ids;
   }, [dueSoonJobsForFilter, installationSiteIdSet, overdueSiteIds]);
 
+  const getComputedSiteStatus = (siteId: string): SiteStatus => {
+    if (overdueSiteIds.has(siteId)) return 'OVERDUE';
+    if (dueSoonSiteIds.has(siteId)) return 'DUE_SOON';
+    return 'ACTIVE_SITE';
+  };
+
+  const getSiteStatus = (siteId: string): SiteStatus =>
+    siteStatusOverrides[siteId] || getComputedSiteStatus(siteId);
+
+  const getSiteStatusStyles = (status: SiteStatus) => {
+    switch (status) {
+      case 'OVERDUE':
+        return 'bg-red-900/30 text-red-400 border-red-800/50';
+      case 'DUE_SOON':
+        return 'bg-amber-900/30 text-amber-400 border-amber-800/50';
+      case 'ACTIVE_SITE':
+      default:
+        return 'bg-green-900/30 text-green-400 border-green-800/50';
+    }
+  };
+
+  const getSiteStatusLabel = (status: SiteStatus) => {
+    switch (status) {
+      case 'OVERDUE':
+        return 'Overdue';
+      case 'DUE_SOON':
+        return 'Due Soon';
+      case 'ACTIVE_SITE':
+      default:
+        return 'Active Site';
+    }
+  };
+
+  const statusCounts = useMemo(() => {
+    let overdue = 0;
+    let dueSoon = 0;
+    let active = 0;
+    for (const site of sites) {
+      const status = getSiteStatus(site.id);
+      if (status === 'OVERDUE') overdue += 1;
+      else if (status === 'DUE_SOON') dueSoon += 1;
+      else active += 1;
+    }
+    return { overdue, dueSoon, active };
+  }, [sites, siteStatusOverrides, overdueSiteIds, dueSoonSiteIds]);
+
   const filteredSites = sites.filter((s) => {
     if (!matchesSearch(s)) return false;
-    if (siteFilter === 'overdue') return overdueSiteIds.has(s.id);
-    if (siteFilter === 'due-soon') return dueSoonSiteIds.has(s.id);
+    const status = getSiteStatus(s.id);
+    if (siteFilter === 'overdue') return status === 'OVERDUE';
+    if (siteFilter === 'due-soon') return status === 'DUE_SOON';
     return true;
   });
 
@@ -486,8 +553,8 @@ const AdminSites: React.FC = () => {
             <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">Sites</h1>
             <p className="text-gray-500 text-sm font-bold mt-0.5">
               {siteFilter === 'all' && `${sites.length} installation site${sites.length !== 1 ? 's' : ''}`}
-              {siteFilter === 'overdue' && `${overdueSiteIds.size} overdue site${overdueSiteIds.size !== 1 ? 's' : ''}`}
-              {siteFilter === 'due-soon' && `${dueSoonSiteIds.size} due soon site${dueSoonSiteIds.size !== 1 ? 's' : ''}`}
+              {siteFilter === 'overdue' && `${statusCounts.overdue} overdue site${statusCounts.overdue !== 1 ? 's' : ''}`}
+              {siteFilter === 'due-soon' && `${statusCounts.dueSoon} due soon site${statusCounts.dueSoon !== 1 ? 's' : ''}`}
             </p>
           </div>
           <button
@@ -521,7 +588,7 @@ const AdminSites: React.FC = () => {
           >
             <i className="fas fa-triangle-exclamation text-sm"></i>
             <span>Overdue</span>
-            <span className="text-[10px] font-black opacity-80">({overdueSiteIds.size})</span>
+            <span className="text-[10px] font-black opacity-80">({statusCounts.overdue})</span>
           </Link>
           <Link
             to="/dashboard/sites?filter=due-soon"
@@ -533,7 +600,7 @@ const AdminSites: React.FC = () => {
           >
             <i className="fas fa-clock text-sm"></i>
             <span>Due Soon</span>
-            <span className="text-[10px] font-black opacity-80">({dueSoonSiteIds.size})</span>
+            <span className="text-[10px] font-black opacity-80">({statusCounts.dueSoon})</span>
           </Link>
         </div>
         <div className="relative w-full max-w-md">
@@ -557,12 +624,13 @@ const AdminSites: React.FC = () => {
         {loading ? (
           <div className="p-12 text-center text-gray-500 font-bold text-sm">Loading...</div>
         ) : (
-          <table className="w-full text-left min-w-[600px]">
+          <table className="w-full text-left min-w-[700px]">
             <thead className="bg-[#1A1A1A] border-b border-[#333333]">
               <tr>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Site</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Address</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Contact</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
@@ -605,6 +673,28 @@ const AdminSites: React.FC = () => {
                       {s.contact_email && (
                         <p className="text-[10px] text-gray-500">{s.contact_email}</p>
                       )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div
+                      className={`inline-flex items-center px-3 py-1.5 rounded-full border ${getSiteStatusStyles(getSiteStatus(s.id))}`}
+                    >
+                      <select
+                        value={getSiteStatus(s.id)}
+                        onChange={(e) =>
+                          setSiteStatusOverrides((prev) => ({
+                            ...prev,
+                            [s.id]: e.target.value as SiteStatus,
+                          }))
+                        }
+                        className="bg-transparent text-[10px] font-bold uppercase tracking-widest focus:outline-none cursor-pointer appearance-none pr-4 relative z-10 text-inherit"
+                        aria-label={`Update status for site ${s.site_name}`}
+                      >
+                        <option value="OVERDUE">Overdue</option>
+                        <option value="DUE_SOON">Due Soon</option>
+                        <option value="ACTIVE_SITE">Active Site</option>
+                      </select>
+                      <i className="fas fa-chevron-down text-[8px] -ml-3 opacity-60"></i>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">

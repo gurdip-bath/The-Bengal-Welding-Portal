@@ -10,7 +10,7 @@ const TR19_REPORTS_STORAGE_KEY = 'bengal_tr19_reports';
 type StatusFilter = JobStatus | 'ALL';
 
 const AdminJobs: React.FC = () => {
-  const { jobs, searchQuery, setSearchQuery, handleDeleteJob, openAddJobModal, openEditJobModal, openAddSiteTypeModal } = useAdmin();
+  const { jobs, searchQuery, setSearchQuery, handleDeleteJob, openAddJobModal, openEditJobModal, openAddSiteTypeModal, updateStatus } = useAdmin();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
 
@@ -277,9 +277,20 @@ const AdminJobs: React.FC = () => {
                     <p className="text-[10px] text-gray-500">{job.customerId || job.id}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${getStatusStyles(job.status)}`}>
-                      {job.status.replace('_', ' ')}
-                    </span>
+                    <div className={`inline-flex items-center px-3 py-1.5 rounded-full border ${getStatusStyles(job.status)}`}>
+                      <select
+                        value={job.status}
+                        onChange={(e) => updateStatus(job.id, e.target.value as JobStatus)}
+                        className="bg-transparent text-[10px] font-bold uppercase tracking-widest focus:outline-none cursor-pointer appearance-none pr-4 relative z-10 text-inherit"
+                        aria-label={`Update status for job ${job.id}`}
+                      >
+                        <option value="PENDING">Pending</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="CANCELLED">Cancelled</option>
+                      </select>
+                      <i className="fas fa-chevron-down text-[8px] -ml-3 opacity-60"></i>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-400">
                     {jobHasTR19Report(job.id) ? (

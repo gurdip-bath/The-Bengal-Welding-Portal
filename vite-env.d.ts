@@ -1,3 +1,5 @@
+/// <reference types="vite-plugin-pwa/client" />
+
 // Vite env types (avoids vite/client reference which can conflict with tsconfig types)
 declare global {
   interface ImportMetaEnv {

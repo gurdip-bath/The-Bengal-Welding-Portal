@@ -10,7 +10,7 @@ import {
   type CustomerProduct,
   updateCustomerProduct,
 } from '../lib/customerProducts';
-import { MOCK_PRODUCTS } from '../mockData';
+import { listProducts } from '../lib/products';
 
 const AdminCustomers: React.FC = () => {
   const { user } = useOutletContext<{ user: User }>();
@@ -66,10 +66,25 @@ const AdminCustomers: React.FC = () => {
     return `${y}-${m}-${day}`;
   };
 
-  const catalogOptions = useMemo(
-    () => MOCK_PRODUCTS.map((p) => ({ id: p.id, name: p.name })),
-    []
-  );
+  const [catalogOptions, setCatalogOptions] = useState<Array<{ id: string; name: string }>>([]);
+
+  const loadCatalogOptions = async () => {
+    try {
+      const products = await listProducts();
+      setCatalogOptions(products.map((p) => ({ id: p.id, name: p.name })));
+    } catch {
+      // Non-blocking: if catalog fetch fails, keep the page functional.
+    }
+  };
+
+  useEffect(() => {
+    void loadCatalogOptions();
+  }, []);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    void loadCatalogOptions();
+  }, [modalOpen]);
 
   const customersLenRef = useRef(0);
   useEffect(() => {

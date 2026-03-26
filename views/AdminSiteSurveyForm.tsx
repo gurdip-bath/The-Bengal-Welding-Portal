@@ -713,7 +713,7 @@ function MediaPreview({ item, onRemove }: { item: MediaItem; onRemove: () => voi
         </div>
       )}
       {signedUrl && (
-        <div className="absolute left-1 bottom-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute right-1 bottom-1 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <a
             href={signedUrl}
             target="_blank"
@@ -736,7 +736,7 @@ function MediaPreview({ item, onRemove }: { item: MediaItem; onRemove: () => voi
         </div>
       )}
       {item.name && (
-        <span className="text-[10px] text-gray-300 absolute bottom-1 left-1 right-8 truncate bg-black/50 px-1 rounded">
+        <span className="text-[10px] text-gray-300 absolute bottom-1 left-1 right-16 z-10 truncate bg-black/50 px-1 rounded">
           {item.name}
         </span>
       )}

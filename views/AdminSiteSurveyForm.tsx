@@ -645,32 +645,55 @@ const AdminSiteSurveyForm: React.FC = () => {
 };
 
 function MediaPreview({ item, onRemove }: { item: MediaItem; onRemove: () => void }) {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(item.type === 'image');
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   React.useEffect(() => {
-    if (item.type === 'image') {
-      getSignedUrl(item.path)
-        .then(setImageUrl)
-        .finally(() => setLoading(false));
-    }
+    let active = true;
+    setLoading(true);
+    getSignedUrl(item.path)
+      .then((url) => {
+        if (!active) return;
+        setSignedUrl(url || null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setSignedUrl(null);
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [item.type, item.path]);
 
-  if (item.type === 'video') {
-    return (
-      <div className="relative group aspect-square rounded-xl border border-[#333333] bg-black flex items-center justify-center overflow-hidden">
-        <i className="fas fa-video text-2xl text-gray-600"></i>
-        <span className="text-[10px] text-gray-500 absolute bottom-1 left-1 right-1 truncate">{item.name}</span>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          ×
-        </button>
-      </div>
-    );
-  }
+  const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!signedUrl || downloading) return;
+
+    setDownloading(true);
+    try {
+      const response = await fetch(signedUrl);
+      if (!response.ok) throw new Error('Failed to download file');
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = item.name || `site-survey-${item.type}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div className="relative group aspect-square rounded-xl border border-[#333333] overflow-hidden">
@@ -678,12 +701,44 @@ function MediaPreview({ item, onRemove }: { item: MediaItem; onRemove: () => voi
         <div className="w-full h-full flex items-center justify-center bg-black">
           <i className="fas fa-spinner fa-spin text-[#F2C200]"></i>
         </div>
-      ) : imageUrl ? (
-        <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+      ) : signedUrl ? (
+        item.type === 'image' ? (
+          <img src={signedUrl} alt={item.name || 'Site media'} className="w-full h-full object-cover" />
+        ) : (
+          <video src={signedUrl} className="w-full h-full object-cover bg-black" controls />
+        )
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-black">
-          <i className="fas fa-image text-gray-600"></i>
+          <i className={`fas ${item.type === 'image' ? 'fa-image' : 'fa-video'} text-gray-600`}></i>
         </div>
+      )}
+      {signedUrl && (
+        <div className="absolute left-1 bottom-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <a
+            href={signedUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="w-6 h-6 rounded-full bg-black/80 text-white text-[10px] flex items-center justify-center"
+            title={`Open ${item.type}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <i className="fas fa-up-right-from-square"></i>
+          </a>
+          <a
+            href={signedUrl}
+            download={item.name || `site-survey-${item.type}`}
+            className="w-6 h-6 rounded-full bg-black/80 text-white text-[10px] flex items-center justify-center"
+            title={`Download ${item.type}`}
+            onClick={handleDownload}
+          >
+            <i className={`fas ${downloading ? 'fa-spinner fa-spin' : 'fa-download'}`}></i>
+          </a>
+        </div>
+      )}
+      {item.name && (
+        <span className="text-[10px] text-gray-300 absolute bottom-1 left-1 right-8 truncate bg-black/50 px-1 rounded">
+          {item.name}
+        </span>
       )}
       <button
         type="button"

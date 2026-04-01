@@ -7,9 +7,9 @@ import Navbar from './components/Navbar';
 import CustomerDashboard from './views/CustomerDashboard';
 import AdminWrapper from './views/AdminWrapper';
 import AdminDashboardHome from './views/AdminDashboardHome';
-import AdminJobs from './views/AdminJobs';
 import AdminSites from './views/AdminSites';
 import AdminCertificates from './views/AdminCertificates';
+import AdminJobs from './views/AdminJobs';
 import AdminTR19Hub from './views/AdminTR19Hub';
 import AdminSurveyForm from './views/AdminSurveyForm';
 import AdminSiteSurveyForm from './views/AdminSiteSurveyForm';
@@ -34,10 +34,10 @@ import JobDetails from './views/JobDetails';
 import AIAssistant from './components/AIAssistant';
 import AddToHomeScreenPrompt from './components/AddToHomeScreenPrompt';
 
-/** Admin/Engineer: redirect job link to Jobs page. Customer: show JobDetails. */
+/** Admin/Engineer: jobs UI is deprecated; send to Sites. Customer: show JobDetails. */
 function JobRoute({ user }: { user: User }) {
   if (user.role === 'ADMIN' || user.role === 'ENGINEER') {
-    return <Navigate to="/dashboard/jobs" replace />;
+    return <Navigate to="/dashboard/sites" replace />;
   }
   return <JobDetails role={user.role} />;
 }

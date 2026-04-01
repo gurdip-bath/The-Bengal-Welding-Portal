@@ -256,7 +256,7 @@ const AdminTR19ReportForm: React.FC = () => {
             {getSiteName(job)} — {getJobIdentifierAndService(job)}
           </p>
         </div>
-        <button onClick={() => navigate('/dashboard/jobs')} className="text-gray-500 hover:text-white text-xl">
+        <button onClick={() => navigate('/dashboard/tr19')} className="text-gray-500 hover:text-white text-xl">
           <i className="fas fa-times"></i>
         </button>
       </div>

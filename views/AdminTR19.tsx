@@ -98,11 +98,11 @@ const AdminTR19: React.FC<AdminTR19Props> = ({ onOpenCertificate }) => {
         </div>
         <div className="flex items-center gap-3">
           <Link
-            to="/dashboard/jobs"
+            to="/dashboard/sites"
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-[#111111] border border-[#333333] text-gray-300 hover:border-[#F2C200] hover:text-white transition-all"
           >
             <i className="fas fa-briefcase"></i>
-            TR19 from Job
+            View Sites
           </Link>
           <Link
             to="/dashboard/tr19/add"

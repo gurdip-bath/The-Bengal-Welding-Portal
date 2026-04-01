@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   createInstallationSite,
@@ -6,6 +6,8 @@ import {
   type InstallationSite,
   type InstallationSiteInsert,
 } from '../lib/installationSites';
+import { useAdmin } from '../contexts/AdminContext';
+import type { Job } from '../types';
 
 const MAX_MEDIA_FILES = 10;
 const MAX_FILE_MB = 10;
@@ -20,6 +22,7 @@ type Props = {
 
 export default function SiteUpsertModal({ open, mode, initialSite, onClose, onSaved }: Props) {
   const isEdit = mode === 'edit';
+  const { jobs, setJobs, saveJob, refreshJobs } = useAdmin();
 
   const [form, setForm] = useState<InstallationSiteInsert>(() => ({
     site_name: initialSite?.site_name ?? '',
@@ -41,6 +44,25 @@ export default function SiteUpsertModal({ open, mode, initialSite, onClose, onSa
     { type: 'image' | 'video'; url: string; name?: string } | null
   >(null);
 
+  const existingJobForSite = useMemo(() => {
+    const siteId = initialSite?.id;
+    if (!siteId) return null;
+    const direct = jobs.find((j) => j.id === siteId) || null;
+    if (direct) return direct;
+    const matches = jobs.filter((j) => j.customerId === siteId);
+    if (matches.length === 0) return null;
+    return matches.reduce<Job>((best, j) => {
+      const bestKey = (best.startDate || best.warrantyEndDate || '').slice(0, 10);
+      const jKey = (j.startDate || j.warrantyEndDate || '').slice(0, 10);
+      return jKey > bestKey ? j : best;
+    }, matches[0]);
+  }, [initialSite?.id, jobs]);
+
+  const [jobDates, setJobDates] = useState<{ startDate: string; warrantyEndDate: string }>({
+    startDate: '',
+    warrantyEndDate: '',
+  });
+
   const inputClass =
     'w-full px-4 py-2.5 bg-[#111111] border border-[#333333] rounded-lg text-white text-sm focus:outline-none focus:border-[#F2C200] focus:ring-1 focus:ring-[#F2C200]/30';
   const labelClass = 'block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5';
@@ -59,9 +81,13 @@ export default function SiteUpsertModal({ open, mode, initialSite, onClose, onSa
       equipment_required: initialSite?.equipment_required ?? '',
       media: initialSite?.media ?? [],
     });
+    setJobDates({
+      startDate: existingJobForSite?.startDate?.slice(0, 10) || '',
+      warrantyEndDate: existingJobForSite?.warrantyEndDate?.slice(0, 10) || '',
+    });
     setSubmitError(null);
     setUploadError(null);
-  }, [open, initialSite?.id]);
+  }, [open, initialSite?.id, existingJobForSite?.id]);
 
   if (!open) return null;
 
@@ -109,6 +135,65 @@ export default function SiteUpsertModal({ open, mode, initialSite, onClose, onSa
       } else {
         saved = await createInstallationSite(payload);
       }
+
+      const shouldUpsertJobDates =
+        jobDates.startDate.trim() !== '' ||
+        jobDates.warrantyEndDate.trim() !== '' ||
+        !!existingJobForSite;
+
+      if (shouldUpsertJobDates) {
+        const base: Job =
+          existingJobForSite ??
+          ({
+            id: saved.id,
+            title: `${saved.site_name} — Renewal`,
+            description: 'Renewal',
+            customerId: saved.id,
+            customerName: saved.site_name,
+            customerAddress: saved.address,
+            customerPostcode: saved.postcode,
+            contactName: saved.contact_name,
+            customerPhone: saved.contact_phone,
+            customerEmail: saved.contact_email ?? undefined,
+            status: 'PENDING',
+            startDate: '',
+            warrantyEndDate: '',
+            scheduledCleanDate: undefined,
+            paymentStatus: 'UNPAID',
+            amount: 0,
+          } as Job);
+
+        const merged: Job = {
+          ...base,
+          customerId: saved.id,
+          customerName: saved.site_name,
+          customerAddress: saved.address,
+          customerPostcode: saved.postcode,
+          contactName: saved.contact_name,
+          customerPhone: saved.contact_phone,
+          customerEmail: saved.contact_email ?? undefined,
+          startDate: jobDates.startDate.trim(),
+          warrantyEndDate: jobDates.warrantyEndDate.trim(),
+        };
+
+        // Keep local UI in sync immediately.
+        setJobs((prev) => {
+          const idx = prev.findIndex((j) => j.id === merged.id);
+          if (idx >= 0) return prev.map((j) => (j.id === merged.id ? merged : j));
+          return [merged, ...prev];
+        });
+
+        try {
+          if (saveJob) {
+            await saveJob(merged);
+          } else if (refreshJobs) {
+            await refreshJobs();
+          }
+        } catch {
+          // ignore; next refresh reconciles
+        }
+      }
+
       onSaved?.(saved);
       onClose();
     } catch (e) {
@@ -251,6 +336,9 @@ export default function SiteUpsertModal({ open, mode, initialSite, onClose, onSa
               className={`${inputClass} resize-none`}
               placeholder="List required equipment, access notes, special considerations..."
             />
+          </div>
+          <div className="pt-2 border-t border-[#333333]">
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Scheduling</p>
           </div>
           <div>
             <label className={labelClass}>Photos / Videos (optional)</label>

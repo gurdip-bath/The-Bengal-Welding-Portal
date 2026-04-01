@@ -35,11 +35,11 @@ function getSidebarItemsForRole(role: User['role']) {
   if (role === 'ENGINEER') {
     const allowedPaths = new Set([
       '/dashboard',
-      '/dashboard/jobs',
       '/dashboard/tr19',
       '/dashboard/certificates',
       '/dashboard/report-log',
       '/dashboard/stock-requests',
+      '/dashboard/jobs',
       '/dashboard/sites',
     ]);
     return SIDEBAR_ITEMS.filter((item) => allowedPaths.has(item.path));

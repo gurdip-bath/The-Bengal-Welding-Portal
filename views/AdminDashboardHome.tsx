@@ -59,7 +59,7 @@ function getWeekDates(weekStartStr: string): string[] {
 type CalendarViewMode = 'day' | 'week' | 'month';
 
 const AdminDashboardHome: React.FC = () => {
-  const { jobs, setJobs, saveJob, refreshJobs, openAddJobModal, openAddSiteTypeModal } = useAdmin();
+  const { jobs, setJobs, saveJob, refreshJobs, openAddSiteTypeModal } = useAdmin();
   const [installationSites, setInstallationSites] = useState<InstallationSite[]>([]);
   const [scheduledMap, setScheduledMap] = useState<Record<string, ScheduledRenewal>>(() => {
     try {
@@ -179,7 +179,6 @@ const AdminDashboardHome: React.FC = () => {
   });
   const getPostcode = (job: Job) =>
     job.customerPostcode || (job.customerAddress ? job.customerAddress.split(',').pop()?.trim() || '' : '');
-
   const installationSiteIds = useMemo(() => installationSites.map((s) => s.id), [installationSites]);
   const installationSiteIdSet = useMemo(() => new Set(installationSiteIds), [installationSiteIds]);
   const activeSiteCount = useMemo(() => {
@@ -290,7 +289,7 @@ const AdminDashboardHome: React.FC = () => {
     .slice(0, 6);
 
   const renewalItems = useMemo(() => {
-    const items: (Job & { isOverdue: boolean; daysText: string })[] = [];
+    const items: (Job & { isOverdue: boolean; daysText: string; scheduledDate?: string })[] = [];
     for (const job of jobs) {
       if (jobsWithCompletedTR19.has(job.id)) continue;
       const dueDateStr = job.warrantyEndDate;
@@ -304,6 +303,7 @@ const AdminDashboardHome: React.FC = () => {
         ...job,
         isOverdue: diff < 0,
         daysText: diff < 0 ? `${Math.abs(diff)}d overdue` : `${diff}d left`,
+        scheduledDate: job.scheduledCleanDate || undefined,
       });
     }
     return items.sort((a, b) => new Date(a.warrantyEndDate).getTime() - new Date(b.warrantyEndDate).getTime());
@@ -481,14 +481,6 @@ const AdminDashboardHome: React.FC = () => {
           >
             <i className="fas fa-building-user"></i>
             <span>Add Job</span>
-          </button>
-          <button
-            type="button"
-            onClick={openAddJobModal}
-            className="hidden"
-            aria-label="Add Job Hidden"
-          >
-            <span>Add Job Hidden</span>
           </button>
           <Link
             to="/dashboard/certificates"
@@ -903,6 +895,15 @@ const AdminDashboardHome: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
+                  {item.scheduledDate && (
+                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-blue-900/30 text-blue-300 border border-blue-800/40">
+                      Scheduled:{' '}
+                      {new Date(item.scheduledDate + 'T12:00:00').toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                    </span>
+                  )}
                   <span
                     className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
                       item.isOverdue ? 'bg-red-900/30 text-red-400' : 'bg-amber-900/30 text-amber-400'
@@ -915,9 +916,7 @@ const AdminDashboardHome: React.FC = () => {
               </Link>
             ))}
             {renewalItems.length === 0 && (
-              <div className="p-12 text-center text-gray-500 text-sm font-bold">
-                No sites due for renewal.
-              </div>
+              <div className="p-12 text-center text-gray-500 text-sm font-bold">No sites due for renewal.</div>
             )}
           </div>
         </div>

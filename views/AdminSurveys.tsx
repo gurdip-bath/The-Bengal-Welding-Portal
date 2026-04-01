@@ -100,11 +100,11 @@ const AdminSurveys: React.FC = () => {
         <h1 className="text-2xl font-black text-[#F2C200] tracking-tight">Surveys</h1>
         <div className="flex items-center gap-3">
           <Link
-            to="/dashboard/jobs"
+            to="/dashboard/sites"
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-[#111111] border border-[#333333] text-gray-300 hover:border-[#F2C200] hover:text-white transition-all"
           >
             <i className="fas fa-briefcase"></i>
-            + New TR19 Survey
+            View Sites
           </Link>
           <Link
             to="/dashboard/tr19/add"
@@ -191,7 +191,7 @@ const AdminSurveys: React.FC = () => {
         <h2 className="text-sm font-black text-gray-400 uppercase tracking-wider">TR19 Surveys</h2>
         {submittedSurveys.length > 0 && (
           <p className="text-xs text-gray-500 font-bold">
-            Go to <Link to="/dashboard/jobs" className="text-[#F2C200] hover:underline">Jobs</Link> to fill out the TR19 report and generate the certificate.
+            Go to <Link to="/dashboard/tr19" className="text-[#F2C200] hover:underline">TR19</Link> to fill out the TR19 report and generate the certificate.
           </p>
         )}
 
@@ -205,15 +205,15 @@ const AdminSurveys: React.FC = () => {
             </p>
             <p className="text-gray-600 text-sm mt-1">
               {submittedSurveys.length === 0
-                ? 'Start a survey from the Jobs page.'
-                : 'Go to Jobs to start a new survey.'}
+                ? 'Start a survey from the TR19 page.'
+                : 'Go to TR19 to start a new survey.'}
             </p>
             {submittedSurveys.length === 0 && (
               <Link
-                to="/dashboard/jobs"
+                to="/dashboard/tr19/add"
                 className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-xl font-bold text-xs bg-[#F2C200] text-black hover:brightness-110"
               >
-                Go to Jobs
+                Add TR19 Site
               </Link>
             )}
           </div>

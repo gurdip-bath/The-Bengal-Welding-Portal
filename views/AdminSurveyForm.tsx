@@ -104,7 +104,7 @@ const AdminSurveyForm: React.FC = () => {
       submittedAt: status === 'submitted' ? new Date().toISOString() : undefined,
     };
     await upsertTR19GreaseSurvey(newSurvey);
-    navigate('/dashboard/jobs');
+    navigate('/dashboard/tr19');
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

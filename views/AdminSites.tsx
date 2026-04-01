@@ -331,7 +331,7 @@ const AdminSites: React.FC = () => {
   }, [loading, selectedSiteId, filteredSites]);
 
   const siteScheduleMap = useMemo(() => {
-    const map: Record<string, { startDate: string; endDate: string }> = {};
+    const map: Record<string, { jobId: string; startDate: string; endDate: string }> = {};
     for (const job of jobs) {
       if (!job.customerId || !job.startDate) continue;
       const siteId = job.customerId;
@@ -339,7 +339,7 @@ const AdminSites: React.FC = () => {
       const end = (job.warrantyEndDate || job.startDate).slice(0, 10);
       const existing = map[siteId];
       if (!existing || start > existing.startDate) {
-        map[siteId] = { startDate: start, endDate: end };
+        map[siteId] = { jobId: job.id, startDate: start, endDate: end };
       }
     }
     return map;
@@ -386,11 +386,16 @@ const AdminSites: React.FC = () => {
     }
   };
 
+  const inputClass =
+    'w-full px-4 py-2.5 bg-[#111111] border border-[#333333] rounded-lg text-white text-sm focus:outline-none focus:border-[#F2C200] focus:ring-1 focus:ring-[#F2C200]/30';
   const labelClass = 'block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5';
 
-  const openScheduleForSite = (site: InstallationSite) => {
-    const existing = getLatestScheduledJobForSite(site.id);
+  const [scheduleJobId, setScheduleJobId] = useState<string | null>(null);
+
+  const openScheduleForSite = (site: InstallationSite, jobId?: string) => {
+    const existing = jobId ? jobs.find((j) => j.id === jobId) || null : getLatestScheduledJobForSite(site.id);
     setScheduleSite(site);
+    setScheduleJobId(existing?.id || null);
     setStartDate(existing?.startDate?.slice(0, 10) || '');
     setEndDate((existing?.warrantyEndDate || existing?.startDate || '').slice(0, 10) || '');
     setStartTime(existing?.startTime || '08:00');
@@ -414,7 +419,7 @@ const AdminSites: React.FC = () => {
     const startStr = start.toISOString().slice(0, 10);
     const endStr = end.toISOString().slice(0, 10);
 
-    const existing = getLatestScheduledJobForSite(scheduleSite.id);
+    const existing = scheduleJobId ? jobs.find((j) => j.id === scheduleJobId) || null : getLatestScheduledJobForSite(scheduleSite.id);
     const nextJob: Job = existing
       ? {
           ...existing,
@@ -469,6 +474,7 @@ const AdminSites: React.FC = () => {
     }
     setScheduleModalOpen(false);
     setScheduleSite(null);
+    setScheduleJobId(null);
     setScheduleError(null);
   };
 
@@ -661,7 +667,7 @@ const AdminSites: React.FC = () => {
                         </button>
                       )}
                       <button
-                        onClick={() => openScheduleForSite(s)}
+                        onClick={() => openScheduleForSite(s, siteScheduleMap[s.id]?.jobId)}
                         disabled={getSiteStatus(s.id) === 'COMPLETED'}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold hover:brightness-110 active:scale-95 transition-all ${
                           getSiteStatus(s.id) === 'COMPLETED'

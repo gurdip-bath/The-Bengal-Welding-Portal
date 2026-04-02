@@ -4,14 +4,13 @@ import type { Job, User } from '../types';
 import { Link, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   listInstallationSites,
-  createInstallationSite,
-  updateInstallationSite,
   deleteInstallationSite,
   type InstallationSite,
-  type InstallationSiteInsert,
 } from '../lib/installationSites';
 import { supabase } from '../lib/supabase';
+import { deleteUser } from '../lib/auth';
 import SiteUpsertModal from '../components/SiteUpsertModal';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 const MAX_MEDIA_FILES = 10;
 const MAX_FILE_MB = 10;
@@ -380,6 +379,12 @@ const AdminSites: React.FC = () => {
     if (!window.confirm(`Delete site "${s.site_name}"?`)) return;
     try {
       await deleteInstallationSite(s.id);
+      if (s.linked_customer_id) {
+        const result = await deleteUser(s.linked_customer_id);
+        if (!result.success) {
+          alert(result.error || 'Site was removed but the linked customer could not be deleted.');
+        }
+      }
       loadSites();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to delete');
@@ -622,7 +627,10 @@ const AdminSites: React.FC = () => {
                   <td className="px-6 py-4">
                     <div>
                       <p className="font-bold text-white">{s.contact_name}</p>
-                      <p className="text-[10px] text-gray-500">{s.contact_phone}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <p className="text-[10px] text-gray-500">{s.contact_phone}</p>
+                        {s.contact_phone?.trim() ? <PhoneCallButton phone={s.contact_phone} size="sm" /> : null}
+                      </div>
                       {s.contact_email && (
                         <p className="text-[10px] text-gray-500">{s.contact_email}</p>
                       )}

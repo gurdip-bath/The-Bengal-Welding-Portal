@@ -10,6 +10,7 @@ import WarrantyCard from '../components/WarrantyCard';
 import { COLORS } from '../constants';
 import { createWarrantyClaim } from '../lib/warrantyClaims';
 import { updateJob, getJobById } from '../lib/jobs';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 interface JobDetailsProps {
   role: UserRole;
@@ -652,7 +653,17 @@ const JobDetails: React.FC<JobDetailsProps> = ({ role }) => {
                   <DetailRow label="Contact" value={job.contactName} />
                   <DetailRow label="Customer ID" value={job.customerId} />
                   <DetailRow label="Email" value={job.customerEmail} />
-                  <DetailRow label="Phone" value={job.customerPhone} />
+                  {job.customerPhone ? (
+                    <div className="sm:col-span-2">
+                      <p>
+                        <span className="text-gray-500">Phone:</span>{' '}
+                        <span className="text-white font-medium inline-flex items-center gap-2 flex-wrap">
+                          {job.customerPhone}
+                          <PhoneCallButton phone={job.customerPhone} size="sm" />
+                        </span>
+                      </p>
+                    </div>
+                  ) : null}
                   <DetailRow label="Postcode" value={job.customerPostcode} />
                   <div className="sm:col-span-2">
                     <DetailRow label="Address" value={job.customerAddress} />

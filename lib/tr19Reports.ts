@@ -1,7 +1,18 @@
 import { supabase } from './supabase';
 
+/** Partial vs full kitchen extract clean — stored on PCVR / certificate */
+export type TR19CertificateCleanType = 'partial' | 'full';
+
+export function labelCertificateCleanType(v: TR19CertificateCleanType | string | undefined | null): string {
+  if (v === 'partial') return 'Partial clean';
+  if (v === 'full') return 'Full clean';
+  return '—';
+}
+
 export type TR19Report = {
   jobId: string;
+  /** Partial vs full clean — shown on certificate */
+  certificateCleanType?: TR19CertificateCleanType;
   leadOperativeName: string;
   besaCertNo: string;
   secondOperativeName: string;

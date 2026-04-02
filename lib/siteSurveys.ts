@@ -31,6 +31,8 @@ export interface SiteSurvey {
   priority: string | null;
   /** Optional link back to a job used for TR19 PCVR + certificates */
   job_id: string | null;
+  /** TR19 certificate scope: partial clean vs full clean (column added via migration) */
+  tr19_certificate_clean_type?: string | null;
   surveyed_by_id: string | null;
   surveyed_by_name: string | null;
   status: 'draft' | 'submitted';
@@ -62,6 +64,7 @@ export interface SiteSurveyInsert {
   internal_notes?: string | null;
   priority?: string | null;
   job_id?: string | null;
+  tr19_certificate_clean_type?: string | null;
   surveyed_by_id?: string | null;
   surveyed_by_name?: string | null;
   status?: 'draft' | 'submitted';

@@ -4,8 +4,9 @@ import { listSiteSurveys, deleteSiteSurvey } from '../lib/siteSurveys';
 import type { SiteSurvey } from '../lib/siteSurveys';
 import { useAdmin } from '../contexts/AdminContext';
 import type { TR19Report } from '../lib/tr19Reports';
-import { getTR19Report } from '../lib/tr19Reports';
+import { getTR19Report, labelCertificateCleanType } from '../lib/tr19Reports';
 import type { Job } from '../types';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 function emptyReportForJob(jobId: string): TR19Report {
   return {
@@ -170,8 +171,12 @@ const AdminTR19: React.FC<AdminTR19Props> = ({ onOpenCertificate }) => {
                       {s.status}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-400 mb-1">
-                    {s.contact_name} — {s.contact_phone}
+                  <p className="text-sm text-gray-400 mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span>
+                      {s.contact_name}
+                      {s.contact_phone ? ` — ${s.contact_phone}` : ''}
+                    </span>
+                    {s.contact_phone?.trim() ? <PhoneCallButton phone={s.contact_phone} size="sm" /> : null}
                   </p>
                   <p className="text-xs text-gray-500">
                     {s.address_line1}, {s.city} {s.postcode}
@@ -180,6 +185,11 @@ const AdminTR19: React.FC<AdminTR19Props> = ({ onOpenCertificate }) => {
                     {s.survey_type} — {s.work_required.slice(0, 80)}
                     {s.work_required.length > 80 ? '...' : ''}
                   </p>
+                  {(s.tr19_certificate_clean_type === 'partial' || s.tr19_certificate_clean_type === 'full') && (
+                    <p className="text-[10px] font-black text-[#F2C200] uppercase tracking-wider mt-1">
+                      Certificate: {labelCertificateCleanType(s.tr19_certificate_clean_type)}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <Link
                       to={`/dashboard/tr19/edit/${s.id}`}

@@ -11,6 +11,21 @@ import {
   updateCustomerProduct,
 } from '../lib/customerProducts';
 import { listProducts } from '../lib/products';
+import { deleteInstallationSitesByLinkedCustomerId } from '../lib/installationSites';
+import PhoneCallButton from '../components/PhoneCallButton';
+
+function hasOutstandingBalance(c: StoredUser): boolean {
+  return typeof c.balance === 'number' && Number.isFinite(c.balance) && c.balance > 0;
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-black text-gray-500 uppercase mb-0.5">{label}</p>
+      <p className="text-gray-200 font-bold break-words">{value}</p>
+    </div>
+  );
+}
 
 const AdminCustomers: React.FC = () => {
   const { user } = useOutletContext<{ user: User }>();
@@ -24,6 +39,8 @@ const AdminCustomers: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [customerFilter, setCustomerFilter] = useState<'all' | 'trade'>('all');
+  const [balanceFilterActive, setBalanceFilterActive] = useState(false);
+  const [outstandingModalOpen, setOutstandingModalOpen] = useState(false);
 
   const [selected, setSelected] = useState<StoredUser | null>(null);
   const [products, setProducts] = useState<CustomerProduct[]>([]);
@@ -44,6 +61,7 @@ const AdminCustomers: React.FC = () => {
     balance: '0',
     customerType: '' as '' | 'trade' | 'retail',
     completed: false,
+    notes: '',
   });
   const [editCustomerAttachments, setEditCustomerAttachments] = useState<CustomerAttachment[]>([]);
   const [attachmentsUploading, setAttachmentsUploading] = useState(false);
@@ -179,6 +197,7 @@ const AdminCustomers: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      await deleteInstallationSitesByLinkedCustomerId(customer.id);
       const result = await deleteUser(customer.id);
       if (!result.success) {
         setError(result.error || 'Failed to delete customer.');
@@ -219,9 +238,36 @@ const AdminCustomers: React.FC = () => {
   }, [customers, search]);
 
   const filteredByType = useMemo(() => {
-    const base = customerFilter === 'trade' ? filtered.filter((c) => c.customerType === 'trade') : filtered;
+    let base = customerFilter === 'trade' ? filtered.filter((c) => c.customerType === 'trade') : filtered;
+    if (balanceFilterActive) {
+      base = base.filter(hasOutstandingBalance);
+    }
     return base.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
-  }, [customerFilter, filtered]);
+  }, [customerFilter, filtered, balanceFilterActive]);
+
+  const outstandingCustomers = useMemo(
+    () =>
+      customers
+        .filter(hasOutstandingBalance)
+        .slice()
+        .sort((a, b) => (b.balance ?? 0) - (a.balance ?? 0)),
+    [customers]
+  );
+
+  const totalOwedOutstanding = useMemo(
+    () => outstandingCustomers.reduce((sum, c) => sum + (typeof c.balance === 'number' ? c.balance : 0), 0),
+    [outstandingCustomers]
+  );
+
+  const handleBalanceCardClick = () => {
+    if (balanceFilterActive) {
+      setBalanceFilterActive(false);
+      setOutstandingModalOpen(false);
+    } else {
+      setBalanceFilterActive(true);
+      setOutstandingModalOpen(true);
+    }
+  };
 
   const totalCustomerBalance = useMemo(() => {
     return customers.reduce((sum, c) => {
@@ -294,6 +340,7 @@ const AdminCustomers: React.FC = () => {
       balance: typeof customer.balance === 'number' && Number.isFinite(customer.balance) ? String(customer.balance) : '0',
       customerType: customer.customerType || '',
       completed: Boolean(customer.completed),
+      notes: customer.notes ?? '',
     });
     setEditCustomerAttachments(customer.attachments ?? []);
     setAttachmentsError(null);
@@ -424,6 +471,7 @@ const AdminCustomers: React.FC = () => {
         balance: Number.isFinite(Number(editCustomerForm.balance)) ? Number(editCustomerForm.balance) : 0,
         customerType: editCustomerForm.customerType || null,
         completed: editCustomerForm.completed,
+        notes: editCustomerForm.notes.trim() || null,
       });
       if (!result.success) {
         setEditCustomerError(result.error || 'Failed to update customer.');
@@ -446,6 +494,7 @@ const AdminCustomers: React.FC = () => {
                 balance: Number.isFinite(Number(editCustomerForm.balance)) ? Number(editCustomerForm.balance) : 0,
                 customerType: editCustomerForm.customerType || null,
                 completed: editCustomerForm.completed,
+                notes: editCustomerForm.notes.trim() || null,
               }
             : c
         )
@@ -464,6 +513,7 @@ const AdminCustomers: React.FC = () => {
               balance: Number.isFinite(Number(editCustomerForm.balance)) ? Number(editCustomerForm.balance) : 0,
               customerType: editCustomerForm.customerType || null,
               completed: editCustomerForm.completed,
+              notes: editCustomerForm.notes.trim() || null,
             }
           : prev
       );
@@ -652,11 +702,21 @@ const AdminCustomers: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-[#111111] p-6 rounded-2xl border border-[#333333] flex items-center gap-4 hover:border-[#F2C200] transition-colors">
-          <div className="w-12 h-12 rounded-xl bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200]">
+        <button
+          type="button"
+          onClick={handleBalanceCardClick}
+          aria-pressed={balanceFilterActive}
+          title="Show customers who owe money (positive balance)"
+          className={`text-left bg-[#111111] p-6 rounded-2xl border flex items-center gap-4 transition-colors ${
+            balanceFilterActive
+              ? 'border-[#F2C200] ring-2 ring-[#F2C200]/25 shadow-[0_0_0_1px_rgba(242,194,0,0.2)]'
+              : 'border-[#333333] hover:border-[#F2C200]'
+          }`}
+        >
+          <div className="w-12 h-12 rounded-xl bg-[#F2C200]/10 flex items-center justify-center text-[#F2C200] shrink-0">
             <i className="fas fa-scale-balanced text-xl" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Balance</p>
             <p className="text-2xl font-black text-white tabular-nums">
               £
@@ -665,9 +725,48 @@ const AdminCustomers: React.FC = () => {
                 maximumFractionDigits: 2,
               })}
             </p>
+            <p className="text-[10px] font-bold text-gray-500 mt-1">
+              {balanceFilterActive ? (
+                <span className="text-[#F2C200]">Filtered · owes money</span>
+              ) : (
+                <span>Click to filter who owes</span>
+              )}
+            </p>
+          </div>
+        </button>
+      </div>
+
+      {balanceFilterActive && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-[#F2C200]/35 bg-[#F2C200]/5 px-4 py-3">
+          <p className="text-sm font-bold text-white">
+            Showing customers with an outstanding balance
+            <span className="text-gray-400 font-normal">
+              {' '}
+              ({filteredByType.length} {filteredByType.length === 1 ? 'customer' : 'customers'} in table)
+            </span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setOutstandingModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-[#333333] text-[#F2C200] border border-[#333333] hover:bg-[#F2C200] hover:text-black hover:border-[#F2C200] transition-colors"
+            >
+              <i className="fas fa-address-card" />
+              Full details
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBalanceFilterActive(false);
+                setOutstandingModalOpen(false);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-transparent text-gray-300 border border-[#333333] hover:border-gray-500 transition-colors"
+            >
+              Clear filter
+            </button>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <section className="lg:col-span-3 bg-[#111111] rounded-2xl border border-[#333333] overflow-x-auto overflow-y-auto max-h-[calc(100dvh-260px)]">
@@ -717,8 +816,15 @@ const AdminCustomers: React.FC = () => {
                       {typeof c.balance === 'number' ? c.balance.toFixed(2) : '-'}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-xs text-gray-300 font-bold">{c.phone || 'No phone'}</div>
-                      <div className="text-[10px] text-gray-500">{c.email || 'No email'}</div>
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs text-gray-300 font-bold flex items-center gap-2 flex-wrap">
+                            <span>{c.phone || 'No phone'}</span>
+                            {c.phone?.trim() ? <PhoneCallButton phone={c.phone} size="sm" stopPropagation /> : null}
+                          </div>
+                          <div className="text-[10px] text-gray-500">{c.email || 'No email'}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-black border border-[#333333] text-xs font-bold text-white">
@@ -758,7 +864,9 @@ const AdminCustomers: React.FC = () => {
                 {!loading && filteredByType.length === 0 && (
                   <tr>
                     <td colSpan={9} className="px-6 py-12 text-center text-gray-500 font-bold text-sm">
-                      No customers found.
+                      {balanceFilterActive
+                        ? 'No customers with an outstanding balance match the current search and filters.'
+                        : 'No customers found.'}
                     </td>
                   </tr>
                 )}
@@ -1037,12 +1145,15 @@ const AdminCustomers: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Phone</label>
-                <input
-                  type="tel"
-                  value={editCustomerForm.phone}
-                  onChange={(e) => setEditCustomerForm((p) => ({ ...p, phone: e.target.value }))}
-                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="tel"
+                    value={editCustomerForm.phone}
+                    onChange={(e) => setEditCustomerForm((p) => ({ ...p, phone: e.target.value }))}
+                    className="w-full min-w-0 flex-1 p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
+                  />
+                  <PhoneCallButton phone={editCustomerForm.phone} size="sm" />
+                </div>
               </div>
 
               <div>
@@ -1051,6 +1162,27 @@ const AdminCustomers: React.FC = () => {
                   rows={3}
                   value={editCustomerForm.address}
                   onChange={(e) => setEditCustomerForm((p) => ({ ...p, address: e.target.value }))}
+                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none font-medium text-sm leading-relaxed"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">Notes</label>
+                  {editCustomerForm.notes.trim() ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditCustomerForm((p) => ({ ...p, notes: '' }))}
+                      className="text-[10px] font-black uppercase text-red-400 hover:text-red-300"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+                <textarea
+                  rows={4}
+                  value={editCustomerForm.notes}
+                  onChange={(e) => setEditCustomerForm((p) => ({ ...p, notes: e.target.value }))}
+                  placeholder="Internal notes (saved with Save)"
                   className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none font-medium text-sm leading-relaxed"
                 />
               </div>
@@ -1229,6 +1361,143 @@ const AdminCustomers: React.FC = () => {
                   {editCustomerSaving ? 'Saving…' : 'Save'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {outstandingModalOpen && (
+        <div className="fixed inset-0 z-[650] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#111111] border border-[#333333] rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl my-8">
+            <div className="flex items-start justify-between gap-4 p-6 border-b border-[#333333] shrink-0">
+              <div>
+                <h2 className="text-xl font-black text-white">Customers who owe money</h2>
+                <p className="text-sm text-gray-500 font-bold mt-1">
+                  Positive account balance — owed to the business
+                </p>
+                <p className="text-sm text-[#F2C200] font-black mt-2 tabular-nums">
+                  {outstandingCustomers.length}{' '}
+                  {outstandingCustomers.length === 1 ? 'customer' : 'customers'} · Total £
+                  {totalOwedOutstanding.toLocaleString('en-GB', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOutstandingModalOpen(false)}
+                className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors shrink-0"
+                aria-label="Close"
+              >
+                <i className="fas fa-times text-xl" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {outstandingCustomers.length === 0 ? (
+                <p className="text-center text-gray-500 font-bold py-8">No customers have an outstanding balance.</p>
+              ) : (
+                outstandingCustomers.map((c) => (
+                  <div
+                    key={c.id}
+                    className="rounded-xl border border-[#333333] bg-black/40 p-4 space-y-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-black text-[#F2C200] uppercase tracking-widest">
+                          {c.accountNumber || 'No account #'}
+                        </p>
+                        <h3 className="text-lg font-bold text-white mt-0.5">{c.name}</h3>
+                        <p className="text-[10px] text-gray-600 font-mono mt-1">ID: {c.id}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-gray-500 uppercase">Balance owed</p>
+                        <p className="text-xl font-black text-amber-400 tabular-nums">
+                          £
+                          {(typeof c.balance === 'number' ? c.balance : 0).toLocaleString('en-GB', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <DetailRow label="Company" value={c.companyName || '—'} />
+                      <DetailRow label="VAT number" value={c.vatNumber || '—'} />
+                      <DetailRow
+                        label="Account type"
+                        value={c.accountType === 'credit' ? 'Credit' : c.accountType === 'cash' ? 'Cash' : '—'}
+                      />
+                      <DetailRow
+                        label="Customer type"
+                        value={
+                          c.customerType === 'trade'
+                            ? 'Trade'
+                            : c.customerType === 'retail'
+                              ? 'Retail'
+                              : '—'
+                        }
+                      />
+                      <DetailRow label="Email" value={c.email || '—'} />
+                      <div>
+                        <p className="text-[10px] font-black text-gray-500 uppercase mb-0.5">Phone</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-gray-200 font-bold break-words">{c.phone || '—'}</p>
+                          <PhoneCallButton phone={c.phone} size="sm" />
+                        </div>
+                      </div>
+                      <DetailRow label="Products registered" value={String(c.productsCount ?? 0)} />
+                      <DetailRow
+                        label="Completed profile"
+                        value={c.completed ? 'Yes' : 'No'}
+                      />
+                    </div>
+                    {c.address?.trim() ? (
+                      <div>
+                        <p className="text-[10px] font-black text-gray-500 uppercase mb-1">Address</p>
+                        <p className="text-sm text-gray-200 whitespace-pre-wrap">{c.address}</p>
+                      </div>
+                    ) : null}
+
+                    <div className="pt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void loadCustomerProducts(c);
+                          setOutstandingModalOpen(false);
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider bg-[#F2C200] text-black hover:brightness-110"
+                      >
+                        <i className="fas fa-box" />
+                        View products
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOutstandingModalOpen(false);
+                          openEditCustomer(c);
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider bg-[#333333] text-[#F2C200] border border-[#333333] hover:bg-[#444]"
+                      >
+                        <i className="fas fa-pencil-alt" />
+                        Edit customer
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-4 border-t border-[#333333] shrink-0 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setOutstandingModalOpen(false)}
+                className="px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-wider bg-[#333333] text-white hover:bg-[#444]"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

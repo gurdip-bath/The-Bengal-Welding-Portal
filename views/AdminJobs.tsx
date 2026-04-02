@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext';
 import { Job, JobStatus } from '../types';
 import { getSiteName, getJobIdentifierAndService, getSiteAddress } from '../utils/jobIdentity';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 const SURVEYS_STORAGE_KEY = 'bengal_surveys';
 const TR19_REPORTS_STORAGE_KEY = 'bengal_tr19_reports';
@@ -275,6 +276,12 @@ const AdminJobs: React.FC = () => {
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-gray-300">{getSiteName(job)}</p>
                     <p className="text-[10px] text-gray-500">{job.customerId || job.id}</p>
+                    {job.customerPhone?.trim() ? (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[10px] text-gray-400">{job.customerPhone}</span>
+                        <PhoneCallButton phone={job.customerPhone} size="sm" />
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-6 py-4">
                     <div className={`inline-flex items-center px-3 py-1.5 rounded-full border ${getStatusStyles(job.status)}`}>

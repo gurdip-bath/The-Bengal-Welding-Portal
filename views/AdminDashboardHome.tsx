@@ -5,6 +5,7 @@ import { useAdmin } from '../contexts/AdminContext';
 import { listServiceRequestsForAdmin } from '../lib/serviceRequests';
 import { listInstallationSites, type InstallationSite } from '../lib/installationSites';
 import SiteUpsertModal from '../components/SiteUpsertModal';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 const TR19_REPORTS_STORAGE_KEY = 'bengal_tr19_reports';
 const SITE_STATUS_OVERRIDES_KEY = 'bengal_site_status_overrides';
@@ -44,12 +45,14 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Monday (ISO-style) as first day of week; JS getDay() is 0=Sun … 6=Sat */
 function getWeekStart(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
   const day = d.getDay();
-  const sun = new Date(d);
-  sun.setDate(d.getDate() - day);
-  return sun.toISOString().slice(0, 10);
+  const mondayOffset = (day + 6) % 7;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - mondayOffset);
+  return mon.toISOString().slice(0, 10);
 }
 
 function getWeekDates(weekStartStr: string): string[] {
@@ -792,16 +795,17 @@ const AdminDashboardHome: React.FC = () => {
                 </button>
               </div>
               <div className="grid grid-cols-7 gap-2 min-h-[460px]">
-                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d) => (
                   <div key={d} className="text-center text-[9px] font-black text-gray-500 uppercase py-1">
                     {d}
                   </div>
                 ))}
                 {(() => {
                   const firstDay = new Date(calendarView.year, calendarView.month, 1).getDay();
+                  const padMon = (firstDay + 6) % 7;
                   const daysInMonth = new Date(calendarView.year, calendarView.month + 1, 0).getDate();
                   return Array.from({ length: 42 }, (_, i) => {
-                    const day = i - firstDay + 1;
+                    const day = i - padMon + 1;
                     const isInMonth = day >= 1 && day <= daysInMonth;
                     if (!isInMonth) {
                       return (
@@ -1050,8 +1054,11 @@ const AdminDashboardHome: React.FC = () => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-1">Contact Number</label>
-                <div className="w-full px-4 py-2.5 bg-black border border-[#333333] rounded-xl text-white text-sm">
-                  {allDetailsJob.customerPhone || '—'}
+                <div className="w-full px-4 py-2.5 bg-black border border-[#333333] rounded-xl text-white text-sm flex items-center justify-between gap-3">
+                  <span>{allDetailsJob.customerPhone || '—'}</span>
+                  {allDetailsJob.customerPhone?.trim() ? (
+                    <PhoneCallButton phone={allDetailsJob.customerPhone} size="sm" />
+                  ) : null}
                 </div>
               </div>
               <div>
@@ -1188,15 +1195,16 @@ const AdminDashboardHome: React.FC = () => {
                         </button>
                       </div>
                       <div className="grid grid-cols-7 gap-0.5 text-center">
-                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                        {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d) => (
                           <div key={d} className="text-[9px] font-black text-gray-500 py-1">
                             {d}
                           </div>
                         ))}
                         {(() => {
                           const firstDay = new Date(calendarView.year, calendarView.month, 1).getDay();
+                          const padMon = (firstDay + 6) % 7;
                           const daysInMonth = new Date(calendarView.year, calendarView.month + 1, 0).getDate();
-                          const padding = Array.from({ length: firstDay }, (_, i) => (
+                          const padding = Array.from({ length: padMon }, (_, i) => (
                             <div key={`p-${i}`} className="py-1.5" />
                           ));
                           const days = Array.from({ length: daysInMonth }, (_, i) => {

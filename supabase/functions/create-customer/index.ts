@@ -89,6 +89,9 @@ Deno.serve(async (req) => {
     }
     const balance = Number(balanceParsed);
 
+    const notesRaw = String(body.notes ?? "").trim();
+    const notes = notesRaw.length > 0 ? notesRaw.slice(0, 20000) : null;
+
     if (shouldSendInvite && !providedEmail) {
       return new Response(JSON.stringify({ error: "Valid email required to send invite" }), {
         status: 400,
@@ -111,6 +114,7 @@ Deno.serve(async (req) => {
           balance,
           customer_type: customerType,
           completed,
+          notes: notes ?? "",
         },
       });
       if (inviteErr) {
@@ -138,11 +142,23 @@ Deno.serve(async (req) => {
           balance,
           customer_type: customerType,
           completed,
+          notes: notes ?? "",
         },
       });
       if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 400,
+        const raw = String(error.message ?? "");
+        const lower = raw.toLowerCase();
+        const duplicateEmail =
+          providedEmail.length > 0 &&
+          (lower.includes("already been registered") ||
+            lower.includes("already registered") ||
+            lower.includes("user already exists") ||
+            lower.includes("duplicate"));
+        const message = duplicateEmail
+          ? "A customer with this email already exists. Use a different email or link this site to the existing customer."
+          : raw;
+        return new Response(JSON.stringify({ error: message }), {
+          status: duplicateEmail ? 409 : 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -171,6 +187,7 @@ Deno.serve(async (req) => {
         balance,
         customer_type: customerType,
         completed,
+        notes,
       },
       { onConflict: "id" }
     );

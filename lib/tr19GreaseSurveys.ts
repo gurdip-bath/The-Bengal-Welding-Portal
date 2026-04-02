@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { TR19CertificateCleanType } from './tr19Reports';
 
 export interface TR19GreaseSurvey {
   id: string;
@@ -7,6 +8,8 @@ export interface TR19GreaseSurvey {
   customerName: string;
   customerAddress: string;
   postcode: string;
+  /** Partial vs full clean — TR19 certificate type */
+  certificateCleanType?: TR19CertificateCleanType;
   kitchenUse: string;
   linearMetres: string;
   diameterWidth: string;

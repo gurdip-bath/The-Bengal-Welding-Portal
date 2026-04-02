@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Job } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
 import { upsertTR19GreaseSurvey } from '../lib/tr19GreaseSurveys';
+import type { TR19CertificateCleanType } from '../lib/tr19Reports';
 
 interface Survey {
   id: string;
@@ -24,6 +25,7 @@ interface Survey {
   visualCondition: string;
   photos: string[];
   notes: string;
+  certificateCleanType?: TR19CertificateCleanType;
   status: 'draft' | 'submitted';
   submittedAt?: string;
 }
@@ -69,6 +71,7 @@ const AdminSurveyForm: React.FC = () => {
   const [visualCondition, setVisualCondition] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
+  const [certificateCleanType, setCertificateCleanType] = useState<TR19CertificateCleanType>('full');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,6 +103,7 @@ const AdminSurveyForm: React.FC = () => {
       visualCondition,
       photos,
       notes,
+      certificateCleanType,
       status,
       submittedAt: status === 'submitted' ? new Date().toISOString() : undefined,
     };
@@ -179,6 +183,17 @@ const AdminSurveyForm: React.FC = () => {
           <p className="text-xs text-gray-400">Address: <span className="text-white">{job.customerAddress || '—'}</span></p>
           <p className="text-xs text-gray-400">Postcode: <span className="text-white">{job.customerPostcode || '—'}</span></p>
           <p className="text-xs text-gray-400">Kitchen Use: <span className="text-white">{kitchenUse}</span></p>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-gray-400 mb-1">TR19 certificate clean type</label>
+          <select
+            value={certificateCleanType}
+            onChange={(e) => setCertificateCleanType(e.target.value as TR19CertificateCleanType)}
+            className="w-full px-4 py-2.5 bg-black border border-[#333333] rounded-xl text-white text-sm focus:border-[#F2C200] focus:outline-none"
+          >
+            <option value="full">Full clean</option>
+            <option value="partial">Partial clean</option>
+          </select>
         </div>
       </div>
 

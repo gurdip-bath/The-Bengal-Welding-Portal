@@ -3,7 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAdmin } from '../contexts/AdminContext';
 import { Job } from '../types';
 import { getSiteName, getJobIdentifierAndService } from '../utils/jobIdentity';
-import { getTR19Report, upsertTR19Report } from '../lib/tr19Reports';
+import {
+  getTR19Report,
+  upsertTR19Report,
+  type TR19CertificateCleanType,
+} from '../lib/tr19Reports';
 import { addTR19ReportLogEntry } from '../lib/tr19ReportLog';
 import { getLatestSubmittedTR19GreaseSurveyForJob } from '../lib/tr19GreaseSurveys';
 
@@ -18,6 +22,7 @@ interface MicronReading {
 
 interface TR19Report {
   jobId: string;
+  certificateCleanType?: TR19CertificateCleanType;
   leadOperativeName: string;
   besaCertNo: string;
   secondOperativeName: string;
@@ -98,6 +103,7 @@ const AdminTR19ReportForm: React.FC = () => {
   const [cleaningMethods, setCleaningMethods] = useState<string[]>([]);
   const [areasCleaned, setAreasCleaned] = useState<string[]>([]);
   const [nextRecommendedCleanDate, setNextRecommendedCleanDate] = useState('');
+  const [certificateCleanType, setCertificateCleanType] = useState<TR19CertificateCleanType>('full');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
@@ -130,6 +136,8 @@ const AdminTR19ReportForm: React.FC = () => {
         setCleaningMethods(existing.cleaningMethods || []);
         setAreasCleaned(existing.areasCleaned || []);
         setNextRecommendedCleanDate(existing.nextRecommendedCleanDate || '');
+        const ct = existing.certificateCleanType;
+        setCertificateCleanType(ct === 'partial' || ct === 'full' ? ct : 'full');
       })
       .catch(() => {
         // ignore
@@ -164,6 +172,7 @@ const AdminTR19ReportForm: React.FC = () => {
     const reportRef = `TR19-2026-${jobId.slice(-6).toUpperCase()}`;
     const report: TR19Report = {
       jobId,
+      certificateCleanType,
       leadOperativeName,
       besaCertNo,
       secondOperativeName,
@@ -288,6 +297,18 @@ const AdminTR19ReportForm: React.FC = () => {
       {step === 1 && (
         <div className="space-y-6 animate-in fade-in">
           <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Operative Details</h3>
+          <div>
+            <label className="block text-xs font-bold text-gray-400 mb-1">TR19 certificate clean type *</label>
+            <select
+              value={certificateCleanType}
+              onChange={(e) => setCertificateCleanType(e.target.value as TR19CertificateCleanType)}
+              className="w-full px-4 py-2.5 bg-black border border-[#333333] rounded-xl text-white text-sm focus:border-[#F2C200] focus:outline-none"
+            >
+              <option value="full">Full clean</option>
+              <option value="partial">Partial clean</option>
+            </select>
+            <p className="text-[10px] text-gray-500 mt-1">Recorded on the post-clean verification report and certificate.</p>
+          </div>
           <div>
             <label className="block text-xs font-bold text-gray-400 mb-1">Lead Operative Name *</label>
             <input

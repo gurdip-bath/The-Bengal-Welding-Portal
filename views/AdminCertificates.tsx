@@ -4,11 +4,17 @@ import { getSiteName, getJobIdentifierAndService, getSiteAddress, getJobService 
 import html2pdf from 'html2pdf.js';
 import { useAdmin } from '../contexts/AdminContext';
 import { Job } from '../types';
-import { getTR19Report, listTR19ReportJobIds, type TR19Report } from '../lib/tr19Reports';
+import {
+  getTR19Report,
+  listTR19ReportJobIds,
+  labelCertificateCleanType,
+  type TR19Report,
+} from '../lib/tr19Reports';
 import {
   listInstallationSites,
   type InstallationSite,
 } from '../lib/installationSites';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 const SERVICE_TYPES = ['Full Duct Clean', 'Partial Duct Clean', 'Filter Replacement', 'Grease Trap Clean', 'Inspection'];
 const GREASE_RATINGS = ['Grade 1 - Heavy', 'Grade 2 - Light', 'Grade 3 - Trace', 'Grade 4 - Clean'];
@@ -531,7 +537,15 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
                 <div>
                   <h4 className="text-xs font-black text-gray-500 uppercase mb-2">Site Details</h4>
                   <p className="text-gray-700"><span className="font-bold">SITE ADDRESS:</span> {[effectiveCertificateFromReport.job.customerAddress, effectiveCertificateFromReport.job.customerPostcode].filter(Boolean).join(', ') || '—'}</p>
-                  <p className="text-gray-700"><span className="font-bold">CONTACT PHONE:</span> {effectiveCertificateFromReport.job.customerPhone || '—'}</p>
+                  <p className="text-gray-700 flex flex-wrap items-center gap-2">
+                    <span>
+                      <span className="font-bold">CONTACT PHONE:</span>{' '}
+                      {effectiveCertificateFromReport.job.customerPhone || '—'}
+                    </span>
+                    {effectiveCertificateFromReport.job.customerPhone?.trim() ? (
+                      <PhoneCallButton phone={effectiveCertificateFromReport.job.customerPhone} size="sm" />
+                    ) : null}
+                  </p>
                   <p className="text-gray-700"><span className="font-bold">TYPE OF PREMISES:</span> Restaurant</p>
                 </div>
               </div>
@@ -541,6 +555,10 @@ const AdminCertificates: React.FC<AdminCertificatesProps> = ({
                 <div>
                   <h4 className="text-xs font-black text-gray-500 uppercase mb-2">Job Details</h4>
                   <p className="text-gray-700"><span className="font-bold">JOB NUMBER:</span> {effectiveCertificateFromReport.job.id}</p>
+                  <p className="text-gray-700">
+                    <span className="font-bold">CERTIFICATE CLEAN TYPE:</span>{' '}
+                    {labelCertificateCleanType(effectiveCertificateFromReport.report.certificateCleanType)}
+                  </p>
                   <p className="text-gray-700"><span className="font-bold">TIME ON SITE:</span> {effectiveCertificateFromReport.report.timeOnSiteStart} - {effectiveCertificateFromReport.report.timeOnSiteEnd}</p>
                   <p className="text-gray-700"><span className="font-bold">LEAD BESA GHO/GHT CERT NO.:</span> {effectiveCertificateFromReport.report.besaCertNo || '—'}</p>
                 </div>

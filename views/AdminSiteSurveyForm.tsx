@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { createSiteSurvey, updateSiteSurvey, getSiteSurvey } from '../lib/siteSurveys';
 import { uploadSiteSurveyMedia, getSignedUrl, type MediaItem } from '../lib/storage';
 import { useAdmin } from '../contexts/AdminContext';
+import PhoneCallButton from '../components/PhoneCallButton';
+import type { TR19CertificateCleanType } from '../lib/tr19Reports';
 
 const SURVEY_TYPE_OPTIONS = [
   'TR19 Grease',
@@ -13,6 +15,11 @@ const SURVEY_TYPE_OPTIONS = [
 ];
 const SCOPE_OPTIONS = ['Small', 'Medium', 'Large'];
 const PRIORITY_OPTIONS = ['Low', 'Normal', 'Urgent'];
+
+const CERTIFICATE_CLEAN_OPTIONS: { value: TR19CertificateCleanType; label: string }[] = [
+  { value: 'full', label: 'Full clean' },
+  { value: 'partial', label: 'Partial clean' },
+];
 
 function parseJobAddress(address?: string) {
   const parts = (address || '')
@@ -76,6 +83,7 @@ const AdminSiteSurveyForm: React.FC = () => {
   const [internalNotes, setInternalNotes] = useState('');
   const [priority, setPriority] = useState('normal');
   const [linkedJobId, setLinkedJobId] = useState<string>('');
+  const [certificateCleanType, setCertificateCleanType] = useState<TR19CertificateCleanType>('full');
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -148,6 +156,8 @@ const AdminSiteSurveyForm: React.FC = () => {
         setInternalNotes(s.internal_notes ?? '');
         setPriority(s.priority ?? 'normal');
         setLinkedJobId(s.job_id ?? '');
+        const ct = s.tr19_certificate_clean_type;
+        setCertificateCleanType(ct === 'partial' || ct === 'full' ? ct : 'full');
       })
       .catch(() => setLoadError('Failed to load survey'))
       .finally(() => setLoadingForm(false));
@@ -263,6 +273,7 @@ const AdminSiteSurveyForm: React.FC = () => {
         internal_notes: internalNotes.trim() || null,
         priority: priority || null,
         job_id: linkedJobId || null,
+        tr19_certificate_clean_type: certificateCleanType,
         status,
       };
 
@@ -406,13 +417,16 @@ const AdminSiteSurveyForm: React.FC = () => {
           </div>
           <div>
             <label className={labelCls}>Contact Phone</label>
-            <input
-              type="tel"
-              value={contactPhone}
-              onChange={(e) => setContactPhone(e.target.value)}
-              className={inputCls}
-              placeholder="Phone number"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="tel"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                className={`${inputCls} flex-1 min-w-0`}
+                placeholder="Phone number"
+              />
+              <PhoneCallButton phone={contactPhone} size="sm" />
+            </div>
           </div>
           <div>
             <label className={labelCls}>Contact Email</label>
@@ -436,13 +450,16 @@ const AdminSiteSurveyForm: React.FC = () => {
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>Alt Contact Phone</label>
-            <input
-              type="tel"
-              value={altContactPhone}
-              onChange={(e) => setAltContactPhone(e.target.value)}
-              className={inputCls}
-              placeholder="Optional"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="tel"
+                value={altContactPhone}
+                onChange={(e) => setAltContactPhone(e.target.value)}
+                className={`${inputCls} flex-1 min-w-0`}
+                placeholder="Optional"
+              />
+              <PhoneCallButton phone={altContactPhone} size="sm" />
+            </div>
           </div>
         </div>
       </div>
@@ -485,6 +502,21 @@ const AdminSiteSurveyForm: React.FC = () => {
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className={labelCls}>TR19 certificate clean type</label>
+          <select
+            value={certificateCleanType}
+            onChange={(e) => setCertificateCleanType(e.target.value as TR19CertificateCleanType)}
+            className={inputCls}
+          >
+            {CERTIFICATE_CLEAN_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-[10px] text-gray-500 mt-1">Whether the eventual certificate is for a full system clean or a partial clean.</p>
         </div>
         <div>
           <label className={labelCls}>Description of Work Required *</label>

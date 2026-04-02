@@ -3,6 +3,7 @@ import { listAllWarrantyClaims, updateWarrantyClaimStatus, type WarrantyClaimRow
 import { COLORS } from '../constants';
 import { Navigate, useOutletContext } from 'react-router-dom';
 import type { User } from '../types';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 const AdminWarrantyClaims: React.FC = () => {
   const { user } = useOutletContext<{ user: User }>();
@@ -99,7 +100,16 @@ const AdminWarrantyClaims: React.FC = () => {
                 <div>
                   <h3 className="font-bold text-white">{c.product_name || `Job ${c.job_id}`}</h3>
                   {c.gar_code && <span className="text-xs text-[#F2C200]">GAR: {c.gar_code}</span>}
-                  <p className="text-xs text-gray-500 mt-1">{c.contact_email || c.contact_phone || '—'}</p>
+                  <div className="text-xs text-gray-500 mt-1 space-y-1.5">
+                    {c.contact_email ? <p className="break-all">{c.contact_email}</p> : null}
+                    {c.contact_phone ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>{c.contact_phone}</span>
+                        <PhoneCallButton phone={c.contact_phone} size="sm" />
+                      </div>
+                    ) : null}
+                    {!c.contact_email && !c.contact_phone ? <p>—</p> : null}
+                  </div>
                 </div>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${statusColors[c.status] || 'bg-gray-700 text-gray-400'}`}>
                   {c.status.replace('_', ' ')}

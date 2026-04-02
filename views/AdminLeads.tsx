@@ -10,6 +10,7 @@ import {
   type LeadStatus,
 } from '../lib/leads';
 import type { User } from '../types';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 const SOURCE_OPTIONS: { value: LeadSource; label: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp' },
@@ -210,7 +211,12 @@ const AdminLeads: React.FC = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 font-bold text-white">{lead.name}</td>
-                <td className="px-6 py-4 text-gray-300">{lead.phone || '—'}</td>
+                <td className="px-6 py-4 text-gray-300">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span>{lead.phone || '—'}</span>
+                    {lead.phone?.trim() ? <PhoneCallButton phone={lead.phone} size="sm" /> : null}
+                  </div>
+                </td>
                 <td className="px-6 py-4 text-gray-300">{lead.email || '—'}</td>
                 <td className="px-6 py-4 text-gray-400 max-w-[200px] truncate" title={lead.enquiry || ''}>
                   {lead.enquiry || '—'}
@@ -297,13 +303,16 @@ const AdminLeads: React.FC = () => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Phone</label>
-                <input
-                  type="tel"
-                  value={addForm.phone}
-                  onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
-                  placeholder="07123 456 789"
-                  className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="tel"
+                    value={addForm.phone}
+                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                    placeholder="07123 456 789"
+                    className="w-full min-w-0 flex-1 p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
+                  />
+                  <PhoneCallButton phone={addForm.phone} size="sm" />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Email</label>

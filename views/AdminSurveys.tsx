@@ -4,6 +4,7 @@ import { useAdmin } from '../contexts/AdminContext';
 import { listSiteSurveys, deleteSiteSurvey } from '../lib/siteSurveys';
 import type { SiteSurvey } from '../lib/siteSurveys';
 import { deleteTR19GreaseSurvey, listTR19GreaseSurveys } from '../lib/tr19GreaseSurveys';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 interface Survey {
   id: string;
@@ -154,7 +155,13 @@ const AdminSurveys: React.FC = () => {
                         {s.status}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-400 mb-1">{s.contact_name} — {s.contact_phone}</p>
+                    <p className="text-sm text-gray-400 mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span>
+                        {s.contact_name}
+                        {s.contact_phone ? ` — ${s.contact_phone}` : ''}
+                      </span>
+                      {s.contact_phone?.trim() ? <PhoneCallButton phone={s.contact_phone} size="sm" /> : null}
+                    </p>
                     <p className="text-xs text-gray-500">{s.address_line1}, {s.city} {s.postcode}</p>
                     <p className="text-xs text-gray-500 mt-1">{s.survey_type} — {s.work_required.slice(0, 80)}{s.work_required.length > 80 ? '...' : ''}</p>
                     <div className="flex items-center gap-4 mt-2">

@@ -13,6 +13,7 @@ import { listJobsForCustomer } from '../lib/jobs';
 import { createComplaint, listComplaintsForCustomer } from '../lib/complaints';
 import { getCustomerAccessDetails, upsertCustomerAccessDetails } from '../lib/customerAccessDetails';
 import { listCustomerProductsForCustomer, type CustomerProduct } from '../lib/customerProducts';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 interface CustomerDashboardProps {
   user: User;
@@ -1193,7 +1194,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                     </div>
                     <div>
                       <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact phone</p>
-                      <p className="text-sm text-white mt-1 break-words">{selectedComplaint.contact_phone || '—'}</p>
+                      <div className="text-sm text-white mt-1 flex items-center gap-2 flex-wrap break-words">
+                        <span>{selectedComplaint.contact_phone || '—'}</span>
+                        {selectedComplaint.contact_phone?.trim() ? (
+                          <PhoneCallButton phone={selectedComplaint.contact_phone} size="sm" />
+                        ) : null}
+                      </div>
                     </div>
                     <div>
                       <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Complaint type</p>
@@ -1365,7 +1371,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ user: initialUser
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Business Number</label>
-                    <p className="text-lg font-bold text-white">{user.phone || 'Not provided'}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-lg font-bold text-white">{user.phone || 'Not provided'}</p>
+                      {user.phone?.trim() ? <PhoneCallButton phone={user.phone} size="sm" /> : null}
+                    </div>
                   </div>
                   <div className="space-y-1 md:col-span-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Email Address</label>

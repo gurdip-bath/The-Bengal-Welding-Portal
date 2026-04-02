@@ -3,14 +3,58 @@ import { supabase } from '../lib/supabase';
 import {
   createInstallationSite,
   updateInstallationSite,
+  deleteInstallationSite,
   type InstallationSite,
   type InstallationSiteInsert,
 } from '../lib/installationSites';
+import { createCustomer, deleteUser, updateCustomer } from '../lib/auth';
 import { useAdmin } from '../contexts/AdminContext';
+import PhoneCallButton from './PhoneCallButton';
 import type { Job } from '../types';
 
 const MAX_MEDIA_FILES = 10;
 const MAX_FILE_MB = 10;
+
+/** Single address line for portal customer (site address + postcode). */
+function customerAddressFromSite(address: string, postcode: string): string {
+  const a = address.trim();
+  const p = postcode.trim();
+  if (!p) return a;
+  if (!a) return p;
+  return `${a}, ${p}`;
+}
+
+async function syncLinkedCustomerFromSite(
+  linkedCustomerId: string,
+  site: InstallationSite
+): Promise<{ success: boolean; error?: string }> {
+  const { data: profile, error: pErr } = await supabase
+    .from('profiles')
+    .select('company_name, vat_number, account_type, balance, customer_type, completed, notes')
+    .eq('id', linkedCustomerId)
+    .maybeSingle();
+  if (pErr) return { success: false, error: pErr.message };
+
+  const addr = customerAddressFromSite(site.address, site.postcode);
+  const at = profile?.account_type;
+  const ct = profile?.customer_type;
+  const result = await updateCustomer({
+    userId: linkedCustomerId,
+    name: site.site_name,
+    address: addr,
+    phone: site.contact_phone,
+    email: site.contact_email?.trim() || '',
+    companyName: (profile?.company_name as string | undefined) ?? '',
+    vatNumber: (profile?.vat_number as string | undefined) ?? '',
+    accountType: at === 'credit' || at === 'cash' ? at : null,
+    balance: profile?.balance != null && Number.isFinite(Number(profile.balance)) ? Number(profile.balance) : 0,
+    customerType: ct === 'trade' || ct === 'retail' ? ct : null,
+    completed: Boolean(profile?.completed),
+    notes: profile?.notes != null ? String(profile.notes) : null,
+  });
+  if (!result.success) return { success: false, error: result.error };
+  return { success: true };
+}
 
 type Props = {
   open: boolean;
@@ -132,8 +176,39 @@ export default function SiteUpsertModal({ open, mode, initialSite, onClose, onSa
       if (isEdit) {
         if (!initialSite?.id) throw new Error('No site selected to edit');
         saved = await updateInstallationSite(initialSite.id, payload);
+        if (initialSite.linked_customer_id) {
+          const sync = await syncLinkedCustomerFromSite(initialSite.linked_customer_id, saved);
+          if (!sync.success) {
+            setSubmitError(
+              `Site was saved, but syncing to the linked portal customer failed: ${sync.error ?? 'Unknown error'}. You can try saving again.`
+            );
+            setSubmitting(false);
+            return;
+          }
+        }
       } else {
         saved = await createInstallationSite(payload);
+        const cust = await createCustomer({
+          name: saved.site_name,
+          address: customerAddressFromSite(saved.address, saved.postcode),
+          phone: saved.contact_phone,
+          email: saved.contact_email?.trim() || undefined,
+          sendInvite: false,
+        });
+        if (!cust.success || !cust.user) {
+          await deleteInstallationSite(saved.id);
+          throw new Error(
+            cust.error ||
+              'Could not create the portal customer. The site was not saved. If this email is already in use, choose another.'
+          );
+        }
+        try {
+          saved = await updateInstallationSite(saved.id, { linked_customer_id: cust.user.id });
+        } catch (linkErr) {
+          await deleteInstallationSite(saved.id);
+          await deleteUser(cust.user.id);
+          throw linkErr instanceof Error ? linkErr : new Error('Failed to link customer to site');
+        }
       }
 
       const shouldUpsertJobDates =
@@ -267,6 +342,17 @@ export default function SiteUpsertModal({ open, mode, initialSite, onClose, onSa
               {submitError}
             </div>
           )}
+          {!isEdit && (
+            <p className="text-xs text-gray-400 leading-relaxed">
+              A portal customer is created from this site (no email invite). You can send an invite later from{' '}
+              <span className="text-gray-300">Customers</span>.
+            </p>
+          )}
+          {isEdit && initialSite?.linked_customer_id && (
+            <p className="text-xs text-amber-200/90 bg-amber-950/40 border border-amber-800/40 rounded-lg px-3 py-2 leading-relaxed">
+              Site name, address, and contact details sync to the linked portal customer when you save.
+            </p>
+          )}
           <div>
             <label className={labelClass}>Site Name *</label>
             <input
@@ -309,13 +395,16 @@ export default function SiteUpsertModal({ open, mode, initialSite, onClose, onSa
           </div>
           <div>
             <label className={labelClass}>Contact Number *</label>
-            <input
-              type="tel"
-              value={form.contact_phone}
-              onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
-              className={inputClass}
-              placeholder="07123456789"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="tel"
+                value={form.contact_phone}
+                onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
+                className={`${inputClass} flex-1 min-w-0`}
+                placeholder="07123456789"
+              />
+              <PhoneCallButton phone={form.contact_phone} size="sm" />
+            </div>
           </div>
           <div>
             <label className={labelClass}>Contact Email</label>

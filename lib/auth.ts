@@ -16,6 +16,7 @@ export interface StoredUser extends User {
   balance?: number | null;
   customerType?: 'trade' | 'retail' | null;
   completed?: boolean | null;
+  notes?: string | null;
 }
 
 const USERS_CACHE_KEY = 'bengal_users_cache_v1';
@@ -166,18 +167,38 @@ export async function getSessionUser(): Promise<User | null> {
   return mapAuthUserToAppUserWithProfile(session.user);
 }
 
+const PROFILE_SELECT_BASE =
+  'id, role, account_number, name, email, phone, address, products_count, attachments, company_name, vat_number, account_type, balance, customer_type, completed';
+const PROFILE_SELECT_WITH_NOTES = `${PROFILE_SELECT_BASE}, notes`;
+
+function isMissingNotesColumnError(err: { message?: string } | null): boolean {
+  const m = (err?.message || '').toLowerCase();
+  return m.includes('notes') && (m.includes('does not exist') || m.includes('schema cache') || m.includes('could not find'));
+}
+
 export async function getAllUsers(): Promise<StoredUser[]> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Not authenticated');
 
-  const { data, error } = await supabase
+  let data: unknown;
+  let includeNotes = true;
+  let res = await supabase
     .from('profiles')
-    .select('id, role, account_number, name, email, phone, address, products_count, attachments, company_name, vat_number, account_type, balance, customer_type, completed')
+    .select(PROFILE_SELECT_WITH_NOTES)
     .order('account_number', { ascending: true, nullsFirst: false });
 
-  if (error) throw new Error(error.message || 'Failed to load users');
+  if (res.error && isMissingNotesColumnError(res.error)) {
+    includeNotes = false;
+    res = await supabase
+      .from('profiles')
+      .select(PROFILE_SELECT_BASE)
+      .order('account_number', { ascending: true, nullsFirst: false });
+  }
 
-  const mapped: StoredUser[] = (data || []).map((p: any) => {
+  if (res.error) throw new Error(res.error.message || 'Failed to load users');
+  data = res.data;
+
+  const mapped: StoredUser[] = ((data || []) as any[]).map((p: any) => {
     const r = String(p.role || 'customer').toUpperCase();
     const role: UserRole = r === 'ADMIN' ? 'ADMIN' : r === 'ENGINEER' ? 'ENGINEER' : 'CUSTOMER';
     return {
@@ -202,6 +223,12 @@ export async function getAllUsers(): Promise<StoredUser[]> {
           ? (p.customer_type as 'trade' | 'retail')
           : null,
       completed: typeof p.completed === 'boolean' ? p.completed : null,
+      notes:
+        !includeNotes
+          ? null
+          : p.notes == null || p.notes === ''
+            ? null
+            : String(p.notes),
     };
   });
 
@@ -260,6 +287,7 @@ export async function createCustomer(data: {
   customerType?: 'trade' | 'retail' | null;
   completed?: boolean | null;
   sendInvite?: boolean;
+  notes?: string | null;
 }): Promise<{ success: boolean; user?: User; error?: string }> {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -284,6 +312,7 @@ export async function createCustomer(data: {
       customer_type: data.customerType === 'trade' || data.customerType === 'retail' ? data.customerType : null,
       completed: typeof data.completed === 'boolean' ? data.completed : false,
       send_invite: Boolean(data.sendInvite),
+      notes: typeof data.notes === 'string' && data.notes.trim() ? data.notes.trim() : null,
       redirectTo: `${window.location.origin}${window.location.pathname || ''}#/set-password`,
     }),
   });
@@ -315,11 +344,17 @@ export async function updateCustomer(data: {
   balance?: number | null;
   customerType?: 'trade' | 'retail' | null;
   completed?: boolean | null;
+  notes?: string | null;
 }): Promise<{ success: boolean; user?: User; error?: string }> {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
   const emailToSend = (data.email ?? '').trim().toLowerCase();
+  const notesForApi = !('notes' in data)
+    ? undefined
+    : data.notes === null || data.notes === undefined
+      ? null
+      : String(data.notes).trim() || null;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -345,6 +380,7 @@ export async function updateCustomer(data: {
         balance: typeof data.balance === 'number' && Number.isFinite(data.balance) ? data.balance : 0,
         customer_type: data.customerType === 'trade' || data.customerType === 'retail' ? data.customerType : null,
         completed: typeof data.completed === 'boolean' ? data.completed : false,
+        ...(notesForApi !== undefined ? { notes: notesForApi } : {}),
       }),
     });
 

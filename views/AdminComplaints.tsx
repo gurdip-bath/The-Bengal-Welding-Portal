@@ -3,6 +3,7 @@ import { listAllComplaints, updateComplaintStatus, type ComplaintRow } from '../
 import { COLORS } from '../constants';
 import { Navigate, useOutletContext } from 'react-router-dom';
 import type { User } from '../types';
+import PhoneCallButton from '../components/PhoneCallButton';
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -208,7 +209,19 @@ const AdminComplaints: React.FC = () => {
                 <Field label="Site name" value={details.site_name || ''} />
                 <Field label="Site address" value={details.site_address || ''} />
                 <Field label="Contact email" value={details.contact_email} />
-                <Field label="Contact phone" value={details.contact_phone || ''} />
+                <Field
+                  label="Contact phone"
+                  value={
+                    details.contact_phone?.trim() ? (
+                      <span className="inline-flex items-center gap-2 flex-wrap">
+                        <span>{details.contact_phone}</span>
+                        <PhoneCallButton phone={details.contact_phone} size="sm" />
+                      </span>
+                    ) : (
+                      ''
+                    )
+                  }
+                />
                 <Field label="Complaint type" value={details.complaint_type || ''} />
                 <Field label="Date of incident" value={details.date_of_incident ? new Date(details.date_of_incident).toLocaleDateString() : ''} />
                 <Field label="Preferred contact" value={details.preferred_contact || ''} />

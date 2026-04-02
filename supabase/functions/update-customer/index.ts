@@ -67,6 +67,14 @@ Deno.serve(async (req) => {
     if (!Number.isFinite(balanceParsed)) return json(400, { error: "Invalid balance" });
     const balance = Number(balanceParsed);
 
+    const hasNotes = Object.prototype.hasOwnProperty.call(body, "notes");
+    const notesParsed = hasNotes
+      ? (() => {
+          const raw = String(body.notes ?? "").trim();
+          return raw.length > 0 ? raw.slice(0, 20000) : null;
+        })()
+      : undefined;
+
     if (!name) return json(400, { error: "Missing name" });
     const email = emailProvided ? emailRaw.toLowerCase() : null;
 
@@ -74,7 +82,7 @@ Deno.serve(async (req) => {
     if (existingErr || !existing?.user) return json(404, { error: "User not found" });
 
     const currentMeta = existing.user.user_metadata || {};
-    const nextMeta = {
+    const nextMeta: Record<string, unknown> = {
       ...currentMeta,
       name,
       phone,
@@ -86,6 +94,7 @@ Deno.serve(async (req) => {
       customer_type: customerType,
       completed,
     };
+    if (hasNotes) nextMeta.notes = notesParsed ?? "";
 
     const updateAuthPayload: Record<string, unknown> = {
       user_metadata: nextMeta,
@@ -107,6 +116,7 @@ Deno.serve(async (req) => {
       customer_type: customerType,
       completed,
     };
+    if (hasNotes) profileUpdate.notes = notesParsed;
     if (emailProvided) profileUpdate.email = email;
     await admin.from("profiles").update(profileUpdate).eq("id", userId);
 

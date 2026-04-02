@@ -15,6 +15,8 @@ export interface InstallationSite {
   notes: string | null;
   equipment_required: string | null;
   media: { type: 'image' | 'video'; url: string; name?: string }[];
+  /** Portal customer (auth user id) when created with linked customer flow */
+  linked_customer_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +31,7 @@ export interface InstallationSiteInsert {
   notes?: string | null;
   equipment_required?: string | null;
   media?: { type: 'image' | 'video'; url: string; name?: string }[];
+  linked_customer_id?: string | null;
 }
 
 export async function listInstallationSites(): Promise<InstallationSite[]> {
@@ -76,5 +79,14 @@ export async function updateInstallationSite(
 
 export async function deleteInstallationSite(id: string): Promise<void> {
   const { error } = await supabase.from('installation_sites').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+/** Removes all installation sites linked to a portal customer (same id as profiles / auth user). */
+export async function deleteInstallationSitesByLinkedCustomerId(linkedCustomerId: string): Promise<void> {
+  const { error } = await supabase
+    .from('installation_sites')
+    .delete()
+    .eq('linked_customer_id', linkedCustomerId);
   if (error) throw new Error(error.message);
 }

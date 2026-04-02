@@ -6,6 +6,7 @@ import { getAllUsers, registerEmployee } from '../lib/auth';
 import { listAllJobsForAdmin, deleteJob, upsertJob, updateCustomerFieldsForJobs, updateJob } from '../lib/jobs';
 import { AdminProvider } from '../contexts/AdminContext';
 import AdminLayout from '../components/AdminLayout';
+import PhoneCallButton, { phoneToTelHref } from '../components/PhoneCallButton';
 import { User } from '../types';
 
 interface CustomerProfile {
@@ -592,7 +593,10 @@ function CustomerDrawer({
                   <i className="fas fa-phone text-[#F2C200] text-xs"></i>
                   <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Phone</span>
                 </div>
-                <p className="text-sm font-bold text-white ml-6">{detail.phone}</p>
+                <div className="flex items-center gap-2 ml-6">
+                  <p className="text-sm font-bold text-white flex-1 min-w-0">{detail.phone}</p>
+                  <PhoneCallButton phone={detail.phone} size="sm" />
+                </div>
               </div>
               <div className="bg-[#111111] p-4 rounded-xl border border-[#333333]">
                 <div className="flex items-center gap-3 mb-1">
@@ -635,8 +639,11 @@ function CustomerDrawer({
         </div>
         <footer className="p-6 border-t border-[#333333] bg-black grid grid-cols-2 gap-3">
           <a
-            href={`tel:${detail.phone}`}
-            className="flex items-center justify-center gap-2 py-3 bg-[#111111] border border-[#333333] text-white rounded-xl text-xs font-bold hover:border-[#F2C200]"
+            href={phoneToTelHref(detail.phone) || '#'}
+            onClick={(e) => {
+              if (!phoneToTelHref(detail.phone)) e.preventDefault();
+            }}
+            className={`flex items-center justify-center gap-2 py-3 bg-[#111111] border border-[#333333] text-white rounded-xl text-xs font-bold hover:border-[#F2C200] ${!phoneToTelHref(detail.phone) ? 'opacity-50 pointer-events-none' : ''}`}
           >
             <i className="fas fa-phone-alt"></i>
             <span>Call Now</span>
@@ -699,12 +706,15 @@ function EditCustomerModal({ form, setForm, onSave, onClose }: any) {
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Phone</label>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="w-full min-w-0 flex-1 p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none font-bold"
+              />
+              <PhoneCallButton phone={form.phone} size="sm" />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Address</label>
@@ -807,13 +817,16 @@ function JobModal({
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Contact Phone</label>
-            <input
-              type="tel"
-              value={jobForm.customerPhone || ''}
-              onChange={(e) => setJobForm({ ...jobForm, customerPhone: e.target.value })}
-              placeholder="e.g. 07123 456 789"
-              className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="tel"
+                value={jobForm.customerPhone || ''}
+                onChange={(e) => setJobForm({ ...jobForm, customerPhone: e.target.value })}
+                placeholder="e.g. 07123 456 789"
+                className="w-full min-w-0 flex-1 p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
+              />
+              <PhoneCallButton phone={jobForm.customerPhone} size="sm" />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Last Clean Date</label>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PhoneCallButton from '../components/PhoneCallButton';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { createCustomer } from '../lib/auth';
 import { updateLead } from '../lib/leads';
@@ -27,6 +28,7 @@ const AdminAddCustomer: React.FC = () => {
     accountType: '' as '' | 'credit' | 'cash',
     balance: '0',
     customerType: '' as '' | 'trade' | 'retail',
+    notes: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,6 +49,7 @@ const AdminAddCustomer: React.FC = () => {
         accountType: '',
         balance: '0',
         customerType: '',
+        notes: '',
       });
     }
   }, [fromLead]);
@@ -78,6 +81,7 @@ const AdminAddCustomer: React.FC = () => {
         customerType: form.customerType || null,
         completed: false,
         sendInvite,
+        notes: form.notes.trim() || null,
       });
       if (result.success) {
         if (fromLead && result.user) {
@@ -168,6 +172,7 @@ const AdminAddCustomer: React.FC = () => {
           accountType: '',
           balance: '0',
           customerType: '',
+          notes: '',
         });
         if (fromLead) {
           navigate('/dashboard/leads', { replace: true, state: {} });
@@ -250,13 +255,16 @@ const AdminAddCustomer: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Phone</label>
-              <input
-                type="tel"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="07123 456 789"
-                className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="07123 456 789"
+                  className="w-full min-w-0 flex-1 p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none"
+                />
+                <PhoneCallButton phone={form.phone} size="sm" />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Address</label>
@@ -265,6 +273,16 @@ const AdminAddCustomer: React.FC = () => {
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
                 placeholder="Full address"
+                className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Notes</label>
+              <textarea
+                rows={4}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Internal notes (optional)"
                 className="w-full p-4 bg-black border border-[#333333] text-white rounded-xl focus:ring-1 focus:ring-[#F2C200] outline-none resize-none"
               />
             </div>

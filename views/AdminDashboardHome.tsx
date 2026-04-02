@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Job } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
@@ -59,6 +59,76 @@ function getWeekDates(weekStartStr: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDays(weekStartStr, i));
 }
 
+const JOB_ID_DRAG_TYPE = 'application/x-bengal-job-id';
+
+function normalizeJobDateStr(raw: string | undefined): string | null {
+  if (!raw) return null;
+  return raw.length >= 10 ? raw.slice(0, 10) : raw;
+}
+
+/**
+ * First day of the job on the calendar. Sites → Schedule uses job `startDate` and `end date`
+ * (stored as `warrantyEndDate` in the DB). `scheduledCleanDate` is only a fallback when
+ * `startDate` is missing (e.g. legacy rows).
+ */
+function getCalendarSpanStartStr(job: Job): string | null {
+  const start = normalizeJobDateStr(job.startDate);
+  if (start) return start;
+  return normalizeJobDateStr(job.scheduledCleanDate) || normalizeJobDateStr(job.warrantyEndDate);
+}
+
+/** Period end for the calendar bar: the site "end date" field, i.e. `warrantyEndDate`. */
+function getCalendarSpanEndStr(job: Job, startStr: string): string {
+  const end = normalizeJobDateStr(job.warrantyEndDate);
+  return end || startStr;
+}
+
+/** Same span rules as `jobsByDate` on this page. */
+function getJobCalendarSpan(job: Job): { start: string; end: string } | null {
+  const startStr = getCalendarSpanStartStr(job);
+  if (!startStr) return null;
+  const endStr = getCalendarSpanEndStr(job, startStr);
+  const startDateObj = new Date(startStr + 'T12:00:00');
+  const endDateObj = new Date(endStr + 'T12:00:00');
+  if (Number.isNaN(startDateObj.getTime()) || Number.isNaN(endDateObj.getTime())) return null;
+  if (endDateObj < startDateObj) return { start: startStr, end: startStr };
+  return { start: startStr, end: endStr };
+}
+
+function inclusiveSpanDays(start: string, end: string): number {
+  const a = new Date(start + 'T12:00:00').getTime();
+  const b = new Date(end + 'T12:00:00').getTime();
+  return Math.floor((b - a) / 86400000) + 1;
+}
+
+/** Preserves inclusive day count. Site-scheduled jobs: move `startDate` + end date (`warrantyEndDate`). */
+function jobWithCalendarMovedTo(job: Job, newStart: string): Job | null {
+  const span = getJobCalendarSpan(job);
+  if (!span) return null;
+  const days = inclusiveSpanDays(span.start, span.end);
+  const newEnd = addDays(newStart, days - 1);
+  const hasStart = !!(job.startDate && String(job.startDate).trim());
+  if (hasStart) {
+    const oldStart = normalizeJobDateStr(job.startDate);
+    const oldSched = normalizeJobDateStr(job.scheduledCleanDate);
+    const next: Job = { ...job, startDate: newStart, warrantyEndDate: newEnd };
+    // Sites modal sets scheduled clean = start; keep them in sync when they matched.
+    if (oldSched && oldStart && oldSched === oldStart) {
+      next.scheduledCleanDate = newStart;
+    }
+    return next;
+  }
+  const hasScheduled = !!(job.scheduledCleanDate && String(job.scheduledCleanDate).trim());
+  if (hasScheduled) {
+    return { ...job, scheduledCleanDate: newStart, warrantyEndDate: newEnd };
+  }
+  return { ...job, scheduledCleanDate: newStart, warrantyEndDate: newEnd };
+}
+
+function canDragJobOnCalendar(job: Job): boolean {
+  return job.status === 'PENDING' || job.status === 'IN_PROGRESS';
+}
+
 type CalendarViewMode = 'day' | 'week' | 'month';
 
 const AdminDashboardHome: React.FC = () => {
@@ -100,6 +170,9 @@ const AdminDashboardHome: React.FC = () => {
       return {};
     }
   });
+  const [calendarDragOverDate, setCalendarDragOverDate] = useState<string | null>(null);
+  const [calendarDnDError, setCalendarDnDError] = useState<string | null>(null);
+  const calendarDraggingJobIdRef = useRef<string | null>(null);
 
   const JOB_TYPES = [
     'TR19 Grease Clean (Kitchen Extract)',
@@ -149,6 +222,15 @@ const AdminDashboardHome: React.FC = () => {
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  useEffect(() => {
+    const onDragEnd = () => {
+      setCalendarDragOverDate(null);
+      calendarDraggingJobIdRef.current = null;
+    };
+    window.addEventListener('dragend', onDragEnd);
+    return () => window.removeEventListener('dragend', onDragEnd);
   }, []);
 
   useEffect(() => {
@@ -398,14 +480,10 @@ const AdminDashboardHome: React.FC = () => {
   const jobsByDate = useMemo(() => {
     const map: Record<string, Job[]> = {};
     for (const job of jobs) {
-      // Use scheduled clean date or start date as the beginning of the span,
-      // and warrantyEndDate (or start date) as the end, so multi‑day jobs
-      // appear on every day they span in the calendar.
-      const rawStart = job.scheduledCleanDate || job.startDate || job.warrantyEndDate;
-      if (!rawStart) continue;
-      const startStr = rawStart.length >= 10 ? rawStart.slice(0, 10) : rawStart;
-      const rawEnd = job.warrantyEndDate || startStr;
-      const endStr = rawEnd.length >= 10 ? rawEnd.slice(0, 10) : rawEnd;
+      // Same as getJobCalendarSpan: startDate → end date (warrantyEndDate column).
+      const startStr = getCalendarSpanStartStr(job);
+      if (!startStr) continue;
+      const endStr = getCalendarSpanEndStr(job, startStr);
       const startDateObj = new Date(startStr + 'T12:00:00');
       const endDateObj = new Date(endStr + 'T12:00:00');
       if (Number.isNaN(startDateObj.getTime()) || Number.isNaN(endDateObj.getTime())) continue;
@@ -449,6 +527,47 @@ const AdminDashboardHome: React.FC = () => {
     const d = new Date(jobDate + 'T12:00:00');
     setCalendarView({ year: d.getFullYear(), month: d.getMonth() });
   };
+
+  const handleCalendarDragOver = (dateStr: string, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    setCalendarDragOverDate(dateStr);
+  };
+
+  const beginCalendarJobDrag = (jobId: string, e: React.DragEvent) => {
+    calendarDraggingJobIdRef.current = jobId;
+    e.dataTransfer.setData('text/plain', jobId);
+    e.dataTransfer.setData(JOB_ID_DRAG_TYPE, jobId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleCalendarDrop = useCallback(
+    async (targetDateStr: string, e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setCalendarDragOverDate(null);
+      setCalendarDnDError(null);
+      const jobId =
+        e.dataTransfer.getData('text/plain') ||
+        e.dataTransfer.getData(JOB_ID_DRAG_TYPE) ||
+        calendarDraggingJobIdRef.current ||
+        '';
+      calendarDraggingJobIdRef.current = null;
+      if (!jobId) return;
+      const job = jobs.find((j) => j.id === jobId);
+      if (!job || !canDragJobOnCalendar(job)) return;
+      const span = getJobCalendarSpan(job);
+      if (!span || span.start === targetDateStr) return;
+      const updated = jobWithCalendarMovedTo(job, targetDateStr);
+      if (!updated) return;
+      if (saveJob) {
+        const saved = await saveJob(updated);
+        if (!saved) setCalendarDnDError('Could not save the new dates. Try again.');
+      }
+    },
+    [jobs, saveJob]
+  );
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -543,8 +662,10 @@ const AdminDashboardHome: React.FC = () => {
             <h2 className="text-lg font-bold text-white">Job Calendar</h2>
             <p className="text-xs text-gray-500 font-bold">
               {calendarViewMode === 'day' && 'Single day view. Use arrows or Today to change day.'}
-              {calendarViewMode === 'week' && 'Week view. Highlighted days have jobs.'}
-              {calendarViewMode === 'month' && 'Highlighted days have scheduled or active jobs. Click a date to view jobs.'}
+              {calendarViewMode === 'week' &&
+                'Drag a job by the grip onto another day to reschedule; multi-day jobs keep the same number of days.'}
+              {calendarViewMode === 'month' &&
+                'Click a date for day view. Drag a job by the grip onto another day to reschedule (same length in days).'}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-wider text-gray-500">
               <span className="inline-flex items-center gap-2">
@@ -586,6 +707,18 @@ const AdminDashboardHome: React.FC = () => {
           </div>
         </div>
         <div className="p-4">
+          {calendarDnDError && (
+            <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-red-800/50 bg-red-950/30 px-3 py-2">
+              <p className="text-xs font-bold text-red-300">{calendarDnDError}</p>
+              <button
+                type="button"
+                onClick={() => setCalendarDnDError(null)}
+                className="shrink-0 text-[10px] font-black uppercase text-red-400 hover:text-white"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           {/* Day view */}
           {calendarViewMode === 'day' && (
             <div className="space-y-4">
@@ -723,9 +856,11 @@ const AdminDashboardHome: React.FC = () => {
                   return (
                     <div
                       key={dateStr}
-                      className={`rounded-xl border p-2 flex flex-col min-h-[180px] ${
-                        isToday ? 'bg-[#F2C200]/10 border-[#F2C200]/50' : 'bg-black border-[#333333]'
-                      }`}
+                      onDragOverCapture={(e) => handleCalendarDragOver(dateStr, e)}
+                      onDrop={(e) => handleCalendarDrop(dateStr, e)}
+                      className={`rounded-xl border p-2 flex flex-col min-h-[180px] transition-shadow ${
+                        calendarDragOverDate === dateStr ? 'ring-2 ring-[#F2C200] ring-inset' : ''
+                      } ${isToday ? 'bg-[#F2C200]/10 border-[#F2C200]/50' : 'bg-black border-[#333333]'}`}
                     >
                       <div className="flex flex-col items-center mb-2">
                         <span className="text-[9px] font-black text-gray-500 uppercase">
@@ -737,17 +872,29 @@ const AdminDashboardHome: React.FC = () => {
                           {new Date(dateStr + 'T12:00:00').getDate()}
                         </span>
                       </div>
-                      <div className="flex-1 space-y-1 overflow-y-auto">
+                      <div className="flex-1 space-y-1 overflow-y-auto min-h-0">
                         {dayJobs.slice(0, 5).map((job) => (
-                          <button
-                            key={job.id}
-                            type="button"
-                            onClick={() => openEditSiteForJob(job)}
-                            className={`block w-full text-left px-2 py-1 text-[10px] font-bold text-white truncate ${calendarJobClassName(job)}`}
-                            title={job.customerName || job.title || job.id}
-                          >
-                            {job.customerName || job.title || 'Job'}
-                          </button>
+                          <div key={job.id} className={`flex items-stretch gap-0.5 min-w-0 ${calendarJobClassName(job)}`}>
+                            {canDragJobOnCalendar(job) && (
+                              <span
+                                draggable
+                                onDragStart={(e) => beginCalendarJobDrag(job.id, e)}
+                                className="shrink-0 flex items-center px-0.5 cursor-grab active:cursor-grabbing text-gray-600 hover:text-[#F2C200]"
+                                title="Drag to another day"
+                                aria-label={`Drag job ${job.customerName || job.title || job.id} to reschedule`}
+                              >
+                                <i className="fas fa-grip-vertical text-[9px]" />
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openEditSiteForJob(job)}
+                              className="block flex-1 min-w-0 text-left px-1.5 py-1 text-[10px] font-bold text-white truncate rounded"
+                              title={job.customerName || job.title || job.id}
+                            >
+                              {job.customerName || job.title || 'Job'}
+                            </button>
+                          </div>
                         ))}
                         {dayJobs.length > 5 && (
                           <p className="text-[9px] text-gray-500 font-bold px-1">+{dayJobs.length - 5} more</p>
@@ -822,7 +969,11 @@ const AdminDashboardHome: React.FC = () => {
                     return (
                       <div
                         key={dateStr}
-                        className={`rounded-xl border p-2 flex flex-col min-h-[140px] ${
+                        onDragOverCapture={(e) => handleCalendarDragOver(dateStr, e)}
+                        onDrop={(e) => handleCalendarDrop(dateStr, e)}
+                        className={`rounded-xl border p-2 flex flex-col min-h-[140px] transition-shadow ${
+                          calendarDragOverDate === dateStr ? 'ring-2 ring-[#F2C200] ring-inset' : ''
+                        } ${
                           isSelected
                             ? 'bg-[#F2C200]/10 border-[#F2C200]/50'
                             : isToday
@@ -839,17 +990,29 @@ const AdminDashboardHome: React.FC = () => {
                             {day}
                           </span>
                         </button>
-                        <div className="flex-1 space-y-1 overflow-y-auto mt-1">
+                        <div className="flex-1 space-y-1 overflow-y-auto mt-1 min-h-0">
                           {dayJobs.slice(0, 4).map((job) => (
-                            <button
-                              key={job.id}
-                              type="button"
-                              onClick={() => openEditSiteForJob(job)}
-                              className={`block w-full text-left px-2 py-1 text-[10px] font-bold text-white truncate ${calendarJobClassName(job)}`}
-                              title={job.customerName || job.title || job.id}
-                            >
-                              {job.customerName || job.title || 'Job'}
-                            </button>
+                            <div key={job.id} className={`flex items-stretch gap-0.5 min-w-0 ${calendarJobClassName(job)}`}>
+                              {canDragJobOnCalendar(job) && (
+                                <span
+                                  draggable
+                                  onDragStart={(e) => beginCalendarJobDrag(job.id, e)}
+                                  className="shrink-0 flex items-center px-0.5 cursor-grab active:cursor-grabbing text-gray-600 hover:text-[#F2C200]"
+                                  title="Drag to another day"
+                                  aria-label={`Drag job ${job.customerName || job.title || job.id} to reschedule`}
+                                >
+                                  <i className="fas fa-grip-vertical text-[9px]" />
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => openEditSiteForJob(job)}
+                                className="block flex-1 min-w-0 text-left px-1.5 py-1 text-[10px] font-bold text-white truncate rounded"
+                                title={job.customerName || job.title || job.id}
+                              >
+                                {job.customerName || job.title || 'Job'}
+                              </button>
+                            </div>
                           ))}
                           {dayJobs.length > 4 && (
                             <p className="text-[9px] text-gray-500 font-bold px-1">+{dayJobs.length - 4} more</p>

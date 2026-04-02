@@ -7,6 +7,7 @@ import {
   deleteInstallationSite,
   type InstallationSite,
 } from '../lib/installationSites';
+import { deleteJobsForInstallationSiteId } from '../lib/jobs';
 import { supabase } from '../lib/supabase';
 import { deleteUser } from '../lib/auth';
 import SiteUpsertModal from '../components/SiteUpsertModal';
@@ -378,6 +379,7 @@ const AdminSites: React.FC = () => {
   const handleDelete = async (s: InstallationSite) => {
     if (!window.confirm(`Delete site "${s.site_name}"?`)) return;
     try {
+      await deleteJobsForInstallationSiteId(s.id);
       await deleteInstallationSite(s.id);
       if (s.linked_customer_id) {
         const result = await deleteUser(s.linked_customer_id);
@@ -386,6 +388,7 @@ const AdminSites: React.FC = () => {
         }
       }
       loadSites();
+      if (refreshJobs) await refreshJobs();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to delete');
     }

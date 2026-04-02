@@ -208,6 +208,12 @@ export async function deleteJob(id: string): Promise<void> {
   if (error) throw new Error(error.message || 'Failed to delete job');
 }
 
+/** Jobs created for a site use `customer_id` = installation_sites.id. Remove them when the site is deleted. */
+export async function deleteJobsForInstallationSiteId(siteId: string): Promise<void> {
+  const { error } = await supabase.from('jobs').delete().eq('customer_id', siteId);
+  if (error) throw new Error(error.message || 'Failed to delete jobs for this site');
+}
+
 /** Create or update a job row (admin-authoritative). */
 export async function upsertJob(job: Job): Promise<Job> {
   const row = jobToRow(job);

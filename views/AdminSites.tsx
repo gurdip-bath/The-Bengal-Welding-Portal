@@ -554,7 +554,7 @@ const AdminSites: React.FC = () => {
               Jobs
             </Link>{' '}
             and edit that specific job.
-            {' '}To add another job for the same site, click <strong>Schedule dates</strong> on that site again and save a new date range.
+            {' '}To add another job for the same site, click <strong>Schedule dates / Dates confirmed</strong> on that site again and save a new date range.
           </span>
         </div>
         {loadError && (
